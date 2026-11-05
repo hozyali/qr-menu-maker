@@ -1,0 +1,19 @@
+# Secrets: these must never be committed (rulebook Law 21)
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build and local Cloudflare state
+dist/
+.wrangler/
+coverage/
+
+# Local tool settings
+.claude/settings.local.json
+
+# Operating system files
+.DS_Store
