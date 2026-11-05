@@ -69,7 +69,7 @@ h1 { font-size: clamp(2.5rem, 1.5rem + 3.3vw, 4.25rem); color: var(--accent); }
 [data-ui] .p-name, [data-ui].phone .p-name { font-weight: 700; font-size: 19px; }
 .phone .p-meta { color: #57534e; font-size: 14px; margin-bottom: 12px; }
 .phone .p-tabs { display: flex; gap: 6px; margin-bottom: 8px; font-size: 14px; }
-.phone .p-tabs span { padding: 6px 12px; border-radius: 16px; background: #efefec; }
+.phone .p-tabs span { padding: 8px 14px; border-radius: 16px; background: #efefec; }
 .phone .p-tabs .on { background: #161412; color: #fff; }
 [data-ui] .p-item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e7e7e2; }
 .phone .p-item b { display: block; font-weight: 600; }
@@ -77,13 +77,13 @@ h1 { font-size: clamp(2.5rem, 1.5rem + 3.3vw, 4.25rem); color: var(--accent); }
 .phone .p-item i[lang="ur"] { font-size: 16px; text-align: left; }
 .phone .p-price { display: grid; justify-items: end; align-content: start; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 14px; }
 .phone .p-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; text-align: center; font-size: 14px; font-weight: 600; }
-.phone .p-actions span { padding: 9px 2px; background: #efefec; border-radius: 8px; }
+.phone .p-actions span { padding: 10px 8px; background: #efefec; border-radius: 8px; }
 .phone .is-off { opacity: .45; }
 [data-ui] .owner { background: #fff; width: min(100%, 420px); padding: 20px; border-radius: 10px; font-size: 15px; }
 .owner .o-title { font-weight: 700; font-size: 18px; margin-bottom: 8px; }
 .owner em { font-style: normal; font-weight: 400; color: #57534e; font-size: 14px; margin-left: 6px; }
 [data-ui] .o-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e7e7e2; }
-.owner .sw { padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; }
+.owner .sw { padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; }
 .owner .sw.on { background: #dcefe3; color: #123a26; }
 .owner .sw.off { background: #f8e1dd; color: #8e2212; }
 
