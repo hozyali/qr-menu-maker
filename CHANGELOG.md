@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `2026-11-05T14:15Z` Law 5 now requires plain, simple English for everything written to GitHub or the repository.
+
 ### Added
 
 - `2026-11-05T14:01Z` Project rulebook, changelog, git ignore rules, and AI tool instructions.
