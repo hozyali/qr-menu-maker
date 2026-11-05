@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `2026-11-05T14:45Z` Law 8 now allows the static landing page to deploy through Workers Builds on merge.
 - `2026-11-05T14:15Z` Law 5 now requires plain, simple English for everything written to GitHub or the repository.
 
 ### Added
 
+- `2026-11-05T14:45Z` TomatoFry landing page in `apps/site/`, with its Worker configuration and security headers.
 - `2026-11-05T14:01Z` Project rulebook, changelog, git ignore rules, and AI tool instructions.

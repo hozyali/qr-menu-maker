@@ -1,0 +1,10 @@
+{
+  // Static landing page served by a Worker. There is no server code, database, or login here.
+  "name": "tomatofry-site",
+  "compatibility_date": "2026-05-22",
+  "assets": { "directory": "./public" },
+  // Only our own domain serves this page, so printed QR codes never depend on workers.dev (Law 28).
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "tomatofry.com", "custom_domain": true }]
+}

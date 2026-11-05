@@ -22,6 +22,8 @@ Follow all the laws listed below religiously. On every task, edit, or response, 
     8. The owner approves the `production` deployment on GitHub.
 
     A GitHub ruleset on `main` enforces this: PR required, required checks, no force push, no deletion.
+
+    One exception: the static landing page in `apps/site/` deploys through Workers Builds as soon as its PR is merged, skipping steps 7 and 8. It has no database, login, or user data. This exception never extends to any other app.
 9. **Maintain clean folder structure** — keep files organized. Documents go in `docs/`. Plans do not go in files (see Law 10).
 10. **Maintain Plans.** Always create and update plans as an issue with `label:plan` on the GitHub repo. That issue is the only source of truth for a plan. Issues are public, so they never contain secrets or private client data.
 11. **Security & data protection are top priority.** Every PR passes all of these before merge: CodeQL, dependency check, secrets scan, and the AI reviewer's security review. The reviewer checks the PR against this rulebook, including tenant isolation.
