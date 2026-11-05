@@ -17,3 +17,7 @@ coverage/
 
 # Operating system files
 .DS_Store
+
+# Local design tool output
+.taste-skill/
+.claude/launch.json

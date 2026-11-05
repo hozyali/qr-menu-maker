@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TomatoFry: QR code menus for restaurants in Pakistan</title>
+<meta name="description" content="Put your restaurant menu online. Customers scan one QR code and see today's prices. Change the menu any time and the printed QR code stays the same.">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<script src="/site.js" defer></script>
+</head>
+<body>
+
+<div class="stage-wrap">
+  <div class="reading">
+    <header class="sheet" id="top">
+      <nav class="nav" aria-label="Main">
+        <a href="#how">How it works</a>
+        <a class="wordmark" href="#top"><img src="/logo.svg" alt="" width="44" height="44"><span>TomatoFry</span></a>
+        <a href="#prices">Prices</a>
+      </nav>
+      <div class="sheet-body" data-pane="0">
+        <h1>Change the menu.<br>Keep the QR.</h1>
+        <p class="lead">TomatoFry puts your restaurant's menu online. Customers scan one QR code at the table and see today's prices on their phone.</p>
+        <a class="button" href="#try">Try changing a price</a>
+        <p class="note">Opening soon for restaurants in Pakistan.</p>
+      </div>
+    </header>
+
+    <section class="column" id="why" data-pane="1">
+      <h2>A menu that fits Pakistan</h2>
+      <p>Most printed menus are wrong the week after they come back from the press. With TomatoFry, you change a price once and every table has it.</p>
+      <ul class="plain">
+        <li><strong>Half and full.</strong> One karahi can have two prices, or small, medium and large for a pizza.</li>
+        <li><strong>Urdu or English.</strong> Write each dish the way your customers read it.</li>
+        <li><strong>Light on cheap phones.</strong> The menu is built to open quickly on weak internet, with or without food photos.</li>
+        <li><strong>Call, WhatsApp, Map.</strong> One tap reaches your restaurant from the menu.</li>
+      </ul>
+    </section>
+
+    <section class="column" id="today" data-pane="2">
+      <h2>Sold out at 9pm?</h2>
+      <p>Mark a dish as not available today with one click from your phone. Customers stop asking for it, and it returns when you turn it back on.</p>
+      <p>You do not need a designer, a printer, or a new QR code. Your menu lives in one place, and you are the only one who can edit it.</p>
+    </section>
+  </div>
+
+  <aside class="stage" aria-label="Examples of TomatoFry">
+    <div class="pane is-on" data-ui>
+      <div class="table-card">
+        <img class="card-logo" src="/logo.svg" alt="" width="64" height="64">
+        <p class="card-name">Bismillah Karahi House</p>
+        <img class="card-qr" src="/qr.svg" alt="A QR code on a printed table card" width="260" height="260">
+        <p class="card-scan">Scan for menu</p>
+      </div>
+    </div>
+    <div class="pane" data-ui>
+      <div class="phone" aria-hidden="true">
+        <p class="p-name">Bismillah Karahi House</p>
+        <p class="p-meta">Gulberg, Lahore</p>
+        <div class="p-tabs"><span class="on">Karahi</span><span>BBQ</span><span>Drinks</span></div>
+        <div class="p-item"><div><b>Chicken karahi</b><i lang="ur" dir="rtl">چکن کڑاہی</i></div><div class="p-price"><span>Half Rs 1,300</span><span>Full Rs 2,400</span></div></div>
+        <div class="p-item"><div><b>Mutton karahi</b><i lang="ur" dir="rtl">مٹن کڑاہی</i></div><div class="p-price"><span>Half Rs 2,600</span><span>Full Rs 4,900</span></div></div>
+        <div class="p-item"><div><b>White karahi</b><i>Cream and green chilli</i></div><div class="p-price"><span>Half Rs 1,450</span><span>Full Rs 2,700</span></div></div>
+        <div class="p-actions"><span>Call</span><span>WhatsApp</span><span>Map</span></div>
+      </div>
+    </div>
+    <div class="pane" data-ui>
+      <div class="owner" aria-hidden="true">
+        <p class="o-title">Karahi <em>6 of 25 items</em></p>
+        <div class="o-row"><span>Chicken karahi</span><span class="sw on">Available</span></div>
+        <div class="o-row"><span>Mutton karahi</span><span class="sw off">Not today</span></div>
+        <div class="o-row"><span>White karahi</span><span class="sw on">Available</span></div>
+        <div class="o-row"><span>Peshawari karahi</span><span class="sw on">Available</span></div>
+        <div class="o-row"><span>Fish karahi</span><span class="sw off">Not today</span></div>
+        <div class="o-row"><span>Daal karahi</span><span class="sw on">Available</span></div>
+      </div>
+    </div>
+    <p class="stage-bar"><span>tomatofry.com/r/bismillah-karahi-lahore</span><span>Sample restaurant</span></p>
+  </aside>
+</div>
+
+<section class="showcase" id="try" aria-labelledby="try-a">
+  <div class="field dark">
+    <form class="editor" id="editor" aria-label="Edit the sample menu">
+      <label for="e-name">Dish</label>
+      <input id="e-name" value="Chicken karahi" maxlength="28" autocomplete="off">
+      <div class="two">
+        <div><label for="e-half">Half, Rs</label><input id="e-half" inputmode="numeric" value="1300" maxlength="5" autocomplete="off"></div>
+        <div><label for="e-full">Full, Rs</label><input id="e-full" inputmode="numeric" value="2400" maxlength="5" autocomplete="off"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="e-avail" checked> Available today</label>
+    </form>
+    <h2 class="split-a" id="try-a">Edit it here,</h2>
+  </div>
+  <div class="field light">
+    <div class="result">
+      <div class="phone" data-ui>
+        <p class="p-name">Bismillah Karahi House</p>
+        <p class="p-meta">Gulberg, Lahore</p>
+        <div class="p-item" id="r-item"><div><b id="r-name">Chicken karahi</b><i id="r-state">Available today</i></div><div class="p-price"><span>Half Rs <span id="r-half">1,300</span></span><span>Full Rs <span id="r-full">2,400</span></span></div></div>
+        <div class="p-item"><div><b>Seekh kebab</b><i>Plate of four</i></div><div class="p-price"><span>Rs 950</span></div></div>
+      </div>
+      <div class="same" data-ui><img src="/qr.svg" alt="The same QR code, unchanged by your edit" width="96" height="96"><p><b>QR code: unchanged</b><br><span id="r-count">Your printed cards still work.</span></p></div>
+    </div>
+    <p class="split-b" aria-hidden="true">live on every table.</p>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="how-text">
+    <h2>From menu card to table</h2>
+    <p>We can set up your whole menu with you. Keep a photo of your menu card ready, and we handle the typing.</p>
+  </div>
+  <div class="slip">
+    <h3>Before setup</h3>
+    <p class="row"><span>Take a photo of your menu card</span><i></i><span>You</span></p>
+    <p class="row"><span>Create your restaurant account</span><i></i><span>Us</span></p>
+    <h3>Setup</h3>
+    <p class="row"><span>Add your name, logo, phone, address</span><i></i><span>Us</span></p>
+    <p class="row"><span>Add categories, dishes and prices</span><i></i><span>Us</span></p>
+    <p class="row"><span>Check the menu on your own phone</span><i></i><span>You</span></p>
+    <h3>Every day after</h3>
+    <p class="row"><span>Change prices and dishes yourself</span><i></i><span>You</span></p>
+    <p class="row total"><span>One QR code on every table</span><span>Never reprint</span></p>
+  </div>
+</section>
+
+<section class="prices" id="prices">
+  <h2>Plain prices</h2>
+  <div class="price-list">
+    <div>
+      <h3>Every month</h3>
+      <div class="item"><p><span>Free</span><span>Rs 0</span></p><small>Up to 25 dishes, with a small “Powered by TomatoFry” line.</small></div>
+      <div class="item"><p><span>Pro</span><span>Rs 1,000</span></p><small>Unlimited dishes, and no “Powered by” line.</small></div>
+    </div>
+    <div>
+      <h3>One time</h3>
+      <div class="item"><p><span>Setup and QR printing</span><span>Rs 3,000</span></p><small>We enter your menu and print your QR table cards.</small></div>
+      <h3 class="pay">How you pay</h3>
+      <p class="paytext">JazzCash, Easypaisa, or bank transfer. If Pro ends, your menu and QR code keep working.</p>
+    </div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <h2>Short answers</h2>
+  <div class="answers">
+    <p><b>Does the QR code change when I edit my menu?</b> No. It points to your restaurant's link, and that link never changes.</p>
+    <p><b>Do customers need an app?</b> No. They scan with the phone's camera and the menu opens in the browser. They do not log in.</p>
+    <p><b>Can I write the menu in Urdu?</b> Yes. Dish names and descriptions can be in Urdu or English.</p>
+    <p><b>I have no food photos. Is that a problem?</b> No. Photos are optional, and the menu is designed to read well without them.</p>
+    <p><b>What happens if I stop paying for Pro?</b> Your menu stays online and your QR code keeps working. You just cannot add new dishes over the Free limit.</p>
+    <p><b>Can customers order or pay through it?</b> Not now. TomatoFry shows your menu. Customers can call or WhatsApp you from it.</p>
+    <p><b>Can another restaurant see or change my menu?</b> They cannot change it. Your account only reaches your own restaurant, and your menu page is public for customers.</p>
+    <p><b>Can I start today?</b> Not yet. TomatoFry is being built in public, and signup opens soon.</p>
+  </div>
+</section>
+
+<section class="cta" id="start">
+  <div class="cta-text">
+    <h2>Your link,<br>for good.</h2>
+    <p>This link goes on your QR code and stays the same for as long as your restaurant does. Try yours now. Signup opens soon.</p>
+  </div>
+  <form class="dialog" id="claim" data-ui data-whatsapp="" aria-label="Preview your restaurant link">
+    <p class="d-title">Preview your link</p>
+    <label for="c-name">Restaurant name</label>
+    <input id="c-name" value="Bismillah Karahi" maxlength="40" autocomplete="off">
+    <label for="c-city">City</label>
+    <input id="c-city" value="Lahore" maxlength="24" autocomplete="off">
+    <p class="d-link" aria-live="polite">tomatofry.com/r/<b id="c-slug">bismillah-karahi-lahore</b></p>
+    <a class="d-action" id="c-go" aria-disabled="true">Signup opens soon</a>
+  </form>
+</section>
+
+<footer class="foot">
+  <span>QR code menus for restaurants</span>
+  <nav aria-label="Footer"><a href="#how">How it works</a><a href="#prices">Prices</a><a href="#faq">Questions</a><a href="https://github.com/hozyali/qr-menu-maker">GitHub</a></nav>
+  <span class="foot-end">© 2026 TomatoFry</span>
+</footer>
+
+</body>
+</html>
