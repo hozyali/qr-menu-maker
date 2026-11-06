@@ -15,5 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-06T13:53Z` CI checks, CodeQL, an AI reviewer, Dependabot updates for actions, and issue and PR templates.
 - `2026-11-05T14:45Z` TomatoFry landing page in `apps/site/`, with its Worker configuration and security headers.
 - `2026-11-05T14:01Z` Project rulebook, changelog, git ignore rules, and AI tool instructions.
