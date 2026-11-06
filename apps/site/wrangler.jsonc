@@ -1,10 +1,25 @@
 {
-  // Static landing page served by a Worker. There is no server code, database, or login here.
+  // One Worker serves the site, owner, and admin areas. src/index.ts chooses the area by hostname.
   "name": "tomatofry-site",
+  "main": "src/index.ts",
   "compatibility_date": "2026-05-22",
-  "assets": { "directory": "./public" },
-  // Only our own domain serves this page, so printed QR codes never depend on workers.dev (Law 28).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // Without this, a request for "/" on any hostname would get the home page before the Worker runs.
+    "run_worker_first": true
+  },
+  // Only our own domain serves this app, so printed QR codes never depend on workers.dev (Law 28).
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "tomatofry.com", "custom_domain": true }]
+  "routes": [
+    { "pattern": "tomatofry.com", "custom_domain": true },
+    { "pattern": "app.tomatofry.com", "custom_domain": true },
+    { "pattern": "admin.tomatofry.com", "custom_domain": true }
+  ],
+  "env": {
+    // `wrangler dev` rewrites every hostname to the first route, which hides the area routing.
+    // This environment has no routes, so app.localhost and admin.localhost reach their areas.
+    "local": { "routes": [] }
+  }
 }
