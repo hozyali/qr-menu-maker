@@ -10,9 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `2026-11-06T13:26Z` Rulebook updated for the demo setup: no staging, one production database, deploy on merge, and owner-approved migrations.
-
-### Changed
-
 - `2026-11-05T14:45Z` Law 8 now allows the static landing page to deploy through Workers Builds on merge.
 - `2026-11-05T14:15Z` Law 5 now requires plain, simple English for everything written to GitHub or the repository.
 
