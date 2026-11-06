@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `2026-11-06T13:08Z` The landing page headline no longer wraps to three lines on laptop screens.
+
 ### Changed
 
 - `2026-11-05T14:45Z` Law 8 now allows the static landing page to deploy through Workers Builds on merge.
