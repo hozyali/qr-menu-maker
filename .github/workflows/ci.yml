@@ -48,7 +48,7 @@ jobs:
           while IFS= read -r file; do
             case "$file" in
               *migrations/*.sql)
-                if [ -f "$file" ] && grep -nEi '\b(DROP|DELETE|TRUNCATE)\b|\bALTER\b.*\b(RENAME|DROP)\b' "$file"; then
+                if [ -f "$file" ] && .github/scripts/has-destructive-sql.sh "$file"; then
                   echo "Destructive SQL found in $file"
                   found=1
                 fi
@@ -91,24 +91,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The app does not exist yet, so this passes until package.json is added.
-      # After that, `npm run check` must run type check, lint, and all tests,
-      # including the multi-tenant isolation tests.
-      - name: Check for an app
-        id: app
-        run: |
-          if [ -f package.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No package.json yet. Nothing to test."
-          fi
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.app.outputs.exists == 'true'
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/site/package-lock.json
+      # `npm run check` runs the type check, lint, and all tests.
       - name: Run type check, lint, and tests
-        if: steps.app.outputs.exists == 'true'
+        working-directory: apps/site
         run: |
           npm ci --ignore-scripts
           npm run check
