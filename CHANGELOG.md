@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `2026-11-06T14:14Z` A failed AI review now prints its final error message.
 - `2026-11-06T14:06Z` The migration safety check now catches destructive statements split across lines.
 
 ### Changed
