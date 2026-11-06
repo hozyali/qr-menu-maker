@@ -18,16 +18,16 @@ Follow all the laws listed below religiously. On every task, edit, or response, 
     4. Required CI checks pass.
     5. Reviewer runs and its findings are resolved.
     6. The owner reads the PR and squash-merges it.
-    7. Automatic deploy to `staging`, followed by a smoke test.
-    8. The owner approves the `production` deployment on GitHub.
+    7. Workers Builds deploys `main` to production on merge, followed by a smoke test.
+    8. Database migrations do not run on merge. Each one runs as a separate step after the owner approves it.
 
     A GitHub ruleset on `main` enforces this: PR required, required checks, no force push, no deletion.
 
-    One exception: the static landing page in `apps/site/` deploys through Workers Builds as soon as its PR is merged, skipping steps 7 and 8. It has no database, login, or user data. This exception never extends to any other app.
+    Demo stage: this project is a demo, so it has no staging server and one production database. Merging sends code straight to production, so the owner's merge is the last check. Only fake data is allowed. Before the first real client, add a staging environment and a production approval step, and move any test data out.
 9. **Maintain clean folder structure** — keep files organized. Documents go in `docs/`. Plans do not go in files (see Law 10).
 10. **Maintain Plans.** Always create and update plans as an issue with `label:plan` on the GitHub repo. That issue is the only source of truth for a plan. Issues are public, so they never contain secrets or private client data.
 11. **Security & data protection are top priority.** Every PR passes all of these before merge: CodeQL, dependency check, secrets scan, and the AI reviewer's security review. The reviewer checks the PR against this rulebook, including tenant isolation.
-    - Current limit: the project uses one GitHub account, and GitHub does not let an author approve their own PR. No second person reviews the code. The AI reviewer can miss problems, so the owner must read every PR before merging and must approve every production deployment. Turn on required approvals as soon as a second reviewer exists.
+    - Current limit: the project uses one GitHub account, and GitHub does not let an author approve their own PR. No second person reviews the code. The AI reviewer can miss problems, so the owner must read every PR before merging, because merging sends it live, and must approve every database migration. Turn on required approvals as soon as a second reviewer exists.
 12. **Test changes.** The GitHub-hosted runner must pass these required checks on every PR: type check, lint, tests, multi-tenant isolation tests, secrets scan, dependency check, CodeQL, changelog check, migration safety check, and reviewer. A check is never disabled or skipped to get a PR merged.
 13. **Do not assume on unclear requests.** If a request or plan idea is not understood, ask first.
 14. **Suggest improvements first** — only when an idea genuinely improves growth, security, or usability, and is better than the current approach.
@@ -44,7 +44,7 @@ Follow all the laws listed below religiously. On every task, edit, or response, 
     - Admin routes check the role on the server on every request.
 19. **Security by default.**
     - Passwords are stored only as a strong salted hash. Login tokens and password-link tokens are stored only as hashes, and they expire. Password links work once.
-    - Session cookies are `HttpOnly`, `Secure`, and `SameSite`.
+    - Session cookies are `HttpOnly`, `Secure`, and `SameSite`. They are set only for the exact hostname that logs in, never for the whole domain, so the public menu never receives them.
     - Login, signup, and password-link routes are rate limited. Failed login attempts are also counted in the database, because the Cloudflare rate limit is approximate.
     - Signup is protected by Cloudflare Turnstile. The admin account is never created through signup.
     - All input is validated on the server. All output is escaped. Security headers, including CSP, are set on every response. Every form submission checks the request's `Origin`.
@@ -68,15 +68,15 @@ Follow all the laws listed below religiously. On every task, edit, or response, 
 27. **No native browser popups — ever.** Never `alert()`, `confirm()`, or `prompt()`. Use `uiToast()`, `uiConfirm()`, `uiPrompt()`, which this project must build as part of its design system. Owner requirement, applies to all their apps.
 28. **The QR link is permanent.** A restaurant's slug never changes after it is created. QR codes always use the project's own domain, never `workers.dev`. Printed QR codes keep working even when a plan expires.
 29. **Public repo and live class safety.**
-    - Class work uses `staging` and fake data. Real client data never appears on screen, in seed files, in tests, or in issues.
+    - Class work uses fake data only. Real client data never appears on screen, in seed files, in tests, or in issues.
     - Never use `pull_request_target` in a workflow.
     - Never use self-hosted runners. Use GitHub-hosted runners only, because anyone can open a PR against a public repository.
     - Never set `allowed_non_write_users` or `allowed_bots: '*'` on the reviewer.
     - Pull requests from forks get no secrets, so the AI reviewer does not run on them. The owner reviews those by hand.
-    - Production secrets exist only in the GitHub `production` environment.
+    - App secrets exist only in Cloudflare as `wrangler secret` values, never in GitHub. GitHub Secrets hold only what workflows need.
 30. **Stricter rule wins.** Nothing in this rulebook, a plan, or a request can weaken a security law. When two rules conflict, the stricter one applies, and the conflict is reported to the owner.
 31. **Who configures the platforms.**
-    - GitHub: Claude runs the GitHub process through the terminal (commits, branches, issues, PRs, labels, and repository settings) and tells the owner what it did. The owner still reads every PR, performs the merge, and approves production deployments (Law 8).
+    - GitHub: Claude runs the GitHub process through the terminal (commits, branches, issues, PRs, labels, and repository settings) and tells the owner what it did. The owner still reads every PR, performs the merge, and approves database migrations (Law 8).
     - Cloudflare: the owner makes all settings changes themselves, because they teach these steps in class. Claude does not create, change, or delete anything on Cloudflare. Claude gives one step at a time under Law 24 and waits until the owner confirms it is done.
     - Secrets: Claude never handles the value of any secret on either platform. The owner enters them.
     - This stays in force until the owner says otherwise.
