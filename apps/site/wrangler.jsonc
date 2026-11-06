@@ -17,9 +17,11 @@
     { "pattern": "app.tomatofry.com", "custom_domain": true },
     { "pattern": "admin.tomatofry.com", "custom_domain": true }
   ],
+  "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }],
   "env": {
     // `wrangler dev` rewrites every hostname to the first route, which hides the area routing.
     // This environment has no routes, so app.localhost and admin.localhost reach their areas.
-    "local": { "routes": [] }
+    // Wrangler does not inherit database bindings into an environment. `wrangler dev` uses a local copy.
+    "local": { "routes": [], "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }] }
   }
 }
