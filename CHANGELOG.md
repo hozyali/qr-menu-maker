@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `2026-11-06T14:34Z` The migration safety check no longer blocks `ON DELETE CASCADE` and `BEFORE DELETE`.
 - `2026-11-06T14:14Z` A failed AI review now prints its final error message.
 - `2026-11-06T14:06Z` The migration safety check now catches destructive statements split across lines.
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-06T14:34Z` Database schema, tenant helper, isolation tests on a local D1 database, and a lint rule that blocks direct queries.
 - `2026-11-06T14:06Z` One Worker now routes `tomatofry.com`, `app.tomatofry.com`, and `admin.tomatofry.com` to separate areas, with tests and security headers on every response.
 - `2026-11-06T13:53Z` CI checks, CodeQL, an AI reviewer, Dependabot updates for actions, and issue and PR templates.
 - `2026-11-05T14:45Z` TomatoFry landing page in `apps/site/`, with its Worker configuration and security headers.
