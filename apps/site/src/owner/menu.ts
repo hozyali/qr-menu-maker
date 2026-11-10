@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import type { OwnerSession } from "../shared/accounts-db";
 import { page } from "../shared/layout";
 import { deletePhotos, detectImage, MAX_PHOTO_BYTES, newPhotoKey } from "../shared/media";
+import { formatMoney } from "../shared/money";
 import { planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
@@ -16,8 +17,15 @@ const MAX_RUPEES = 9_999_999;
 // The restaurant always comes from the login session (Law 18).
 const menuDb = (c: OwnerContext) => tenantDb(c.env.DB, c.get("owner").restaurantId);
 
-const money = (amountMinor: number) =>
-  `Rs ${(amountMinor / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+// The price format now lives in one shared place, so the dashboard and the public menu always match.
+const money = (amountMinor: number) => formatMoney(amountMinor);
+
+/** The public site for this owner host: app.tomatofry.com becomes tomatofry.com, app.localhost becomes localhost. */
+export function siteOrigin(requestUrl: string): string {
+  const url = new URL(requestUrl);
+  url.hostname = url.hostname.replace(/^app\./, "");
+  return url.origin;
+}
 
 function notFound(c: OwnerContext) {
   return c.html(page("Not found", html`<h1>Not found</h1><p class="lead">This page does not exist. <a href="/">Back to your menu</a></p>`), 404);
@@ -175,13 +183,16 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
         owner.restaurantName,
         html`<header class="top">
 <h1>${owner.restaurantName}</h1>
+<div class="actions">
+<a class="button secondary small" href="/theme">Menu theme</a>
 <form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
+</div>
 </header>
 ${notice === "limit" ? html`<p class="error" role="alert">You have used all ${limit} dishes on the Free plan. Upgrade to Pro to add more.</p>` : ""}
 <div class="stats">
 <div class="stat"><span class="meta">Plan</span><strong>${owner.plan === "pro" ? "Pro" : "Free"}</strong></div>
 <div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${used} of ${limit}`}</strong></div>
-<div class="stat"><span class="meta">Menu link</span><strong class="link">tomatofry.com/r/${owner.slug}</strong></div>
+<div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}/r/${owner.slug}" target="_blank" rel="noopener"><strong>tomatofry.com/r/${owner.slug}</strong></a></div>
 </div>
 <nav class="tabs" aria-label="Categories">
 ${categories.map(

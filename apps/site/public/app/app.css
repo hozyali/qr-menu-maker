@@ -90,3 +90,14 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
   .dish { grid-template-columns: 56px 1fr auto; }
   .dish-main { grid-column: 2 / -1; }
 }
+
+/* Menu theme editor */
+.top .actions { flex-wrap: nowrap; }
+.notice { background: #dcefe3; color: #123a26; padding: 12px; border-radius: var(--radius); margin: 0; font-weight: 600; }
+.warning { background: #fbefd0; color: #4a3500; padding: 12px; border-radius: var(--radius); margin: 0; font-size: 15px; }
+.field input[type="color"] { height: 52px; padding: 4px; cursor: pointer; }
+.choices { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.choices legend { font-weight: 600; font-size: 15px; padding: 0; margin-bottom: 6px; width: 100%; }
+.choice { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #8f8b84; border-radius: var(--radius); background: var(--surface); cursor: pointer; }
+.choice input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.choice:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }

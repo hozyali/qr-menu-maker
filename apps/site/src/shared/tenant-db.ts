@@ -1,5 +1,6 @@
 // All restaurant data goes through this helper, so every query is limited to one restaurant (Law 18).
 // The restaurant id must come from the login session, never from anything the browser sends.
+import { type Theme, toTheme } from "./theme";
 
 export interface Category {
   id: string;
@@ -52,6 +53,23 @@ export function tenantDb(db: D1Database, restaurantId: string) {
     );
 
   return {
+    /** The menu theme of this restaurant (issue #24). */
+    async getTheme(): Promise<Theme> {
+      const row = await db
+        .prepare("SELECT theme_color, theme_mode, photo_size FROM restaurants WHERE id = ?")
+        .bind(restaurantId)
+        .first<Record<string, unknown>>();
+      return toTheme(row?.theme_color, row?.theme_mode, row?.photo_size);
+    },
+
+    /** The caller checks the values first. The database also refuses anything outside the allowed set. */
+    async setTheme(theme: Theme): Promise<void> {
+      await db
+        .prepare("UPDATE restaurants SET theme_color = ?, theme_mode = ?, photo_size = ?, updated_at = ? WHERE id = ?")
+        .bind(theme.color, theme.mode, theme.photoSize, Date.now(), restaurantId)
+        .run();
+    },
+
     async listCategories(): Promise<Category[]> {
       const { results } = await db
         .prepare("SELECT id, name, sort_order FROM categories WHERE restaurant_id = ? ORDER BY sort_order, id")
