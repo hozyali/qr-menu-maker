@@ -17,11 +17,24 @@
     { "pattern": "app.tomatofry.com", "custom_domain": true },
     { "pattern": "admin.tomatofry.com", "custom_domain": true }
   ],
+  // Rough per-address limit for signup and login. Wrangler does not inherit this into environments.
+  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "47011", "simple": { "limit": 10, "period": 60 } }],
+  // Public values. The Turnstile site key is added once the owner creates the widget.
+  "vars": { "TURNSTILE_HOSTNAME": "app.tomatofry.com" },
   "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }],
   "env": {
     // `wrangler dev` rewrites every hostname to the first route, which hides the area routing.
     // This environment has no routes, so app.localhost and admin.localhost reach their areas.
     // Wrangler does not inherit database bindings into an environment. `wrangler dev` uses a local copy.
-    "local": { "routes": [], "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }] }
+    "local": {
+      "routes": [],
+      "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "47011", "simple": { "limit": 10, "period": 60 } }],
+      // Cloudflare's public test keys: the widget always passes, and siteverify answers with example.com.
+      "vars": {
+        "TURNSTILE_HOSTNAME": "example.com",
+        "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+        "TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA"
+      },
+      "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }] }
   }
 }

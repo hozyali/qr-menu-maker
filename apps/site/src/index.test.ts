@@ -18,10 +18,10 @@ describe("hostname routing", () => {
   });
 
   it("serves the owner area on the app hostname", async () => {
-    const response = await get("https://app.tomatofry.com/");
+    const response = await get("https://app.tomatofry.com/login");
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("TomatoFry for restaurant owners");
+    expect(body).toContain("Log in");
     expect(body).not.toContain(LANDING);
   });
 
@@ -34,8 +34,10 @@ describe("hostname routing", () => {
   });
 
   it("does not serve static site files on the owner hostname", async () => {
+    // Without a session the owner area sends visitors to the login page instead of any file.
     const response = await get("https://app.tomatofry.com/qr.svg");
-    expect(response.status).toBe(404);
+    expect(response.status).not.toBe(200);
+    expect(await response.text()).not.toContain(LANDING);
   });
 
   it("returns 404 for a hostname it does not know", async () => {
