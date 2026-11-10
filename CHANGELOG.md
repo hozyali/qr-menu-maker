@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-10T13:37Z` Production Turnstile site key, which turns on signup once the secret key is set.
 - `2026-11-10T13:31Z` Owner signup, login, and logout on `app.tomatofry.com`, with hashed passwords and sessions, a login lockout, a rate limit, same-site form checks, and Turnstile.
 - `2026-11-06T14:34Z` Database schema, tenant helper, isolation tests on a local D1 database, and a lint rule that blocks direct queries.
 - `2026-11-06T14:06Z` One Worker now routes `tomatofry.com`, `app.tomatofry.com`, and `admin.tomatofry.com` to separate areas, with tests and security headers on every response.
