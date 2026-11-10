@@ -70,6 +70,29 @@ describe("tenant isolation: Owner A against Owner B's data", () => {
     expect(row?.n).toBe(0);
   });
 
+  it("cannot see another restaurant's category or its dishes", async () => {
+    expect(await tenantDb(db, A).getCategory(categoryOfB.id)).toBeNull();
+    expect(await tenantDb(db, A).listItems(categoryOfB.id)).toEqual([]);
+  });
+
+  it("does not count another restaurant's dishes", async () => {
+    expect(await tenantDb(db, A).countItems()).toBe(0);
+  });
+
+  it("cannot change, hide, or delete another restaurant's dish", async () => {
+    const helper = tenantDb(db, A);
+    expect(await helper.setItemAvailable(itemOfB.id, false)).toBe(false);
+    expect(await helper.updateItem(itemOfB.id, { categoryId: categoryOfB.id, name: "Hacked", prices: [] })).toBe(false);
+    expect(await helper.deleteItem(itemOfB.id)).toBe(false);
+    const item = await tenantDb(db, B).getItem(itemOfB.id);
+    expect(item?.name).toBe("Chicken karahi");
+    expect(item?.isAvailable).toBe(true);
+  });
+
+  it("cannot move another restaurant's category", async () => {
+    expect(await tenantDb(db, A).moveCategory(categoryOfB.id, "up")).toBe(false);
+  });
+
   it("refuses an empty restaurant id", () => {
     expect(() => tenantDb(db, "")).toThrow();
   });

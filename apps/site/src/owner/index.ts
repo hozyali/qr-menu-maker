@@ -12,15 +12,14 @@ import {
   isLoginLocked,
   recordLoginFailure,
   slugExists,
-  type OwnerSession,
 } from "../shared/accounts-db";
 import { page } from "../shared/layout";
+import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
 import { type FieldErrors, normalizeEmail, readText, slugify, validateSignup } from "../shared/validation";
 
 // Owner area on app.tomatofry.com. It never serves the static site files.
-type OwnerEnv = { Bindings: Env; Variables: { owner: OwnerSession } };
 export const ownerApp = new Hono<OwnerEnv>();
 
 const SESSION_COOKIE = "session"; // Sent as "__Host-session" because of the "host" prefix.
@@ -203,17 +202,5 @@ ownerApp.use("*", async (c, next) => {
   await next();
 });
 
-ownerApp.get("/", (c) => {
-  const owner = c.get("owner");
-  return c.html(
-    page(
-      owner.restaurantName,
-      html`<h1>${owner.restaurantName}</h1>
-<p class="lead">Your menu dashboard is coming next.</p>
-<div class="card form">
-<p class="meta">Your permanent menu link:<br><strong>tomatofry.com/r/${owner.slug}</strong></p>
-<form method="post" action="/logout"><button class="button secondary" type="submit">Log out</button></form>
-</div>`,
-    ),
-  );
-});
+// The menu dashboard and editing pages.
+registerMenuRoutes(ownerApp);

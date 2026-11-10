@@ -33,6 +33,22 @@ export function tenantDb(db: D1Database, restaurantId: string) {
     throw new Error("tenantDb needs a restaurant id");
   }
 
+  const categoryBelongs = async (categoryId: string) =>
+    (await db
+      .prepare("SELECT id FROM categories WHERE restaurant_id = ? AND id = ?")
+      .bind(restaurantId, categoryId)
+      .first()) !== null;
+
+  // Prices are saved as a fixed list, so editing a dish replaces them all at once.
+  const priceInserts = (itemId: string, prices: Price[]) =>
+    prices.map((price, index) =>
+      db
+        .prepare(
+          "INSERT INTO item_prices (id, restaurant_id, item_id, label, amount_minor, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(crypto.randomUUID(), restaurantId, itemId, price.label, price.amountMinor, index),
+    );
+
   return {
     async listCategories(): Promise<Category[]> {
       const { results } = await db
@@ -40,6 +56,17 @@ export function tenantDb(db: D1Database, restaurantId: string) {
         .bind(restaurantId)
         .all<Category>();
       return results;
+    },
+
+    async getCategory(id: string): Promise<{ id: string; name: string; itemCount: number } | null> {
+      const row = await db
+        .prepare(
+          `SELECT c.id, c.name, (SELECT COUNT(*) FROM items i WHERE i.restaurant_id = c.restaurant_id AND i.category_id = c.id) AS item_count
+           FROM categories c WHERE c.restaurant_id = ? AND c.id = ?`,
+        )
+        .bind(restaurantId, id)
+        .first<{ id: string; name: string; item_count: number }>();
+      return row ? { id: row.id, name: row.name, itemCount: row.item_count } : null;
     },
 
     async createCategory(name: string): Promise<{ id: string }> {
@@ -63,6 +90,25 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       return meta.changes > 0;
     },
 
+    /** Swaps the category with its neighbour. Returns false if this restaurant has no such category. */
+    async moveCategory(id: string, direction: "up" | "down"): Promise<boolean> {
+      const categories = await this.listCategories();
+      const index = categories.findIndex((category) => category.id === id);
+      if (index < 0) return false;
+      const other = categories[direction === "up" ? index - 1 : index + 1];
+      const current = categories[index];
+      if (!other || !current) return true;
+      await db.batch([
+        db
+          .prepare("UPDATE categories SET sort_order = ? WHERE restaurant_id = ? AND id = ?")
+          .bind(other.sort_order, restaurantId, current.id),
+        db
+          .prepare("UPDATE categories SET sort_order = ? WHERE restaurant_id = ? AND id = ?")
+          .bind(current.sort_order, restaurantId, other.id),
+      ]);
+      return true;
+    },
+
     /** Returns false if this restaurant has no such category. Its items are removed with it. */
     async deleteCategory(id: string): Promise<boolean> {
       const { meta } = await db
@@ -72,16 +118,51 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       return meta.changes > 0;
     },
 
+    async countItems(): Promise<number> {
+      const row = await db
+        .prepare("SELECT COUNT(*) AS n FROM items WHERE restaurant_id = ?")
+        .bind(restaurantId)
+        .first<{ n: number }>();
+      return row?.n ?? 0;
+    },
+
+    /** All dishes in one category, with their prices, in menu order. */
+    async listItems(categoryId: string): Promise<Item[]> {
+      const [itemResult, priceResult] = await db.batch<Record<string, unknown>>([
+        db
+          .prepare(
+            "SELECT id, category_id, name, description, is_available FROM items WHERE restaurant_id = ? AND category_id = ? ORDER BY sort_order, id",
+          )
+          .bind(restaurantId, categoryId),
+        db
+          .prepare(
+            `SELECT p.item_id, p.label, p.amount_minor FROM item_prices p
+             JOIN items i ON i.restaurant_id = p.restaurant_id AND i.id = p.item_id
+             WHERE p.restaurant_id = ? AND i.category_id = ? ORDER BY p.item_id, p.sort_order`,
+          )
+          .bind(restaurantId, categoryId),
+      ]);
+      const pricesByItem = new Map<string, Price[]>();
+      for (const row of priceResult?.results ?? []) {
+        const list = pricesByItem.get(String(row.item_id)) ?? [];
+        list.push({ label: String(row.label), amountMinor: Number(row.amount_minor) });
+        pricesByItem.set(String(row.item_id), list);
+      }
+      return (itemResult?.results ?? []).map((row) => ({
+        id: String(row.id),
+        categoryId: String(row.category_id),
+        name: String(row.name),
+        description: row.description === null ? null : String(row.description),
+        isAvailable: row.is_available === 1,
+        prices: pricesByItem.get(String(row.id)) ?? [],
+      }));
+    },
+
     /** Returns null if the category does not belong to this restaurant. */
     async createItem(item: NewItem): Promise<{ id: string } | null> {
-      const category = await db
-        .prepare("SELECT id FROM categories WHERE restaurant_id = ? AND id = ?")
-        .bind(restaurantId, item.categoryId)
-        .first();
-      if (!category) {
+      if (!(await categoryBelongs(item.categoryId))) {
         return null;
       }
-
       const id = crypto.randomUUID();
       const now = Date.now();
       // A batch runs as one transaction, so an item never exists without its prices.
@@ -94,15 +175,44 @@ export function tenantDb(db: D1Database, restaurantId: string) {
                ?6, ?6)`,
           )
           .bind(id, restaurantId, item.categoryId, item.name, item.description ?? null, now),
-        ...item.prices.map((price, index) =>
-          db
-            .prepare(
-              "INSERT INTO item_prices (id, restaurant_id, item_id, label, amount_minor, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
-            )
-            .bind(crypto.randomUUID(), restaurantId, id, price.label, price.amountMinor, index),
-        ),
+        ...priceInserts(id, item.prices),
       ]);
       return { id };
+    },
+
+    /** Returns false if the dish or the new category does not belong to this restaurant. */
+    async updateItem(id: string, item: NewItem): Promise<boolean> {
+      if (!(await this.getItem(id)) || !(await categoryBelongs(item.categoryId))) {
+        return false;
+      }
+      await db.batch([
+        db
+          .prepare(
+            "UPDATE items SET category_id = ?, name = ?, description = ?, updated_at = ? WHERE restaurant_id = ? AND id = ?",
+          )
+          .bind(item.categoryId, item.name, item.description ?? null, Date.now(), restaurantId, id),
+        db.prepare("DELETE FROM item_prices WHERE restaurant_id = ? AND item_id = ?").bind(restaurantId, id),
+        ...priceInserts(id, item.prices),
+      ]);
+      return true;
+    },
+
+    /** Returns false if this restaurant has no such dish. */
+    async setItemAvailable(id: string, available: boolean): Promise<boolean> {
+      const { meta } = await db
+        .prepare("UPDATE items SET is_available = ?, updated_at = ? WHERE restaurant_id = ? AND id = ?")
+        .bind(available ? 1 : 0, Date.now(), restaurantId, id)
+        .run();
+      return meta.changes > 0;
+    },
+
+    /** Returns false if this restaurant has no such dish. Its prices are removed with it. */
+    async deleteItem(id: string): Promise<boolean> {
+      const { meta } = await db
+        .prepare("DELETE FROM items WHERE restaurant_id = ? AND id = ?")
+        .bind(restaurantId, id)
+        .run();
+      return meta.changes > 0;
     },
 
     /** Returns null if this restaurant has no such item. */

@@ -1,6 +1,7 @@
 // Account queries: users, sessions, and login attempts.
 // These work before a restaurant is known (signup and login), so they cannot use the tenant helper.
 // Every query here is reviewed by hand and never returns another restaurant's menu data (Law 18).
+import { effectivePlan, type Plan } from "./plans";
 
 export interface OwnerLogin {
   userId: string;
@@ -12,6 +13,8 @@ export interface OwnerSession {
   restaurantId: string;
   restaurantName: string;
   slug: string;
+  /** Effective plan: an expired Pro plan is already turned into Free here. */
+  plan: Plan;
 }
 
 const encoder = new TextEncoder();
@@ -73,16 +76,22 @@ export async function createSession(db: D1Database, userId: string, token: strin
 export async function findOwnerSession(db: D1Database, token: string, now: number): Promise<OwnerSession | null> {
   const row = await db
     .prepare(
-      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.slug
+      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.slug, r.plan, r.plan_expires_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        JOIN restaurants r ON r.owner_user_id = u.id
        WHERE s.token_hash = ? AND s.expires_at > ? AND u.role = 'owner'`,
     )
     .bind(await sha256Hex(token), now)
-    .first<{ user_id: string; restaurant_id: string; name: string; slug: string }>();
+    .first<{ user_id: string; restaurant_id: string; name: string; slug: string; plan: string; plan_expires_at: number | null }>();
   return row
-    ? { userId: row.user_id, restaurantId: row.restaurant_id, restaurantName: row.name, slug: row.slug }
+    ? {
+        userId: row.user_id,
+        restaurantId: row.restaurant_id,
+        restaurantName: row.name,
+        slug: row.slug,
+        plan: effectivePlan(row.plan, row.plan_expires_at, now),
+      }
     : null;
 }
 
