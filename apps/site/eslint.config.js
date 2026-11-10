@@ -6,7 +6,8 @@ export default tseslint.config(
   {
     // Restaurant data must go through the tenant helper (Law 18).
     files: ["src/**/*.ts"],
-    ignores: ["src/shared/tenant-db.ts", "src/**/*.test.ts"],
+    // accounts-db.ts holds the reviewed account queries that run before a restaurant is known.
+    ignores: ["src/shared/tenant-db.ts", "src/shared/accounts-db.ts", "src/**/*.test.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

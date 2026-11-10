@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env local",
-    "types": "wrangler types",
+    "types": "wrangler types --strict-vars=false",
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

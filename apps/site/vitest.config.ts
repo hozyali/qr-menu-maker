@@ -8,7 +8,13 @@ export default defineConfig({
     cloudflareTest(async () => ({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
-        bindings: { TEST_MIGRATIONS: await readD1Migrations(path.join(__dirname, "migrations")) },
+        bindings: {
+          TEST_MIGRATIONS: await readD1Migrations(path.join(__dirname, "migrations")),
+          // Test values only. The Turnstile service itself is replaced in the tests.
+          TURNSTILE_SITE_KEY: "test-site-key",
+          TURNSTILE_SECRET_KEY: "test-secret-key",
+          TURNSTILE_HOSTNAME: "app.tomatofry.com",
+        },
       },
     })),
   ],

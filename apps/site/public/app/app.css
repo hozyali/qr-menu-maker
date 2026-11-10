@@ -1,0 +1,43 @@
+/* Design tokens and components for the owner and admin areas (Law 15). Colours match the home page. */
+:root {
+  --bg: #f4f4f1;
+  --surface: #ffffff;
+  --tone: #e7e7e2;
+  --ink: #161412;
+  --muted: #4d4a45;
+  --accent: #c8321f;
+  --accent-hover: #a92816;
+  --accent-ink: #ffffff;
+  --danger: #a92816;
+  --radius: 8px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 40px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); }
+a { color: inherit; text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.shell { max-width: 440px; margin: 0 auto; padding: var(--space-4) var(--space-2); }
+.brand { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 700; font-size: 18px; text-decoration: none; margin-bottom: var(--space-3); }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
+.lead { color: var(--muted); margin: 0 0 var(--space-3); }
+
+.card { background: var(--surface); border-radius: var(--radius); padding: var(--space-3); }
+.form { display: grid; gap: var(--space-2); }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 600; font-size: 15px; }
+.field input { font: inherit; padding: 12px; border: 1px solid #8f8b84; border-radius: var(--radius); background: var(--surface); color: var(--ink); width: 100%; }
+.field input:focus { border-color: var(--accent); }
+.field .hint { font-size: 14px; color: var(--muted); }
+.field .field-error { font-size: 14px; color: var(--danger); font-weight: 600; }
+
+.error { background: #f8e1dd; color: #6e1a0d; padding: 12px; border-radius: var(--radius); margin: 0; font-weight: 600; }
+.button { font: inherit; font-weight: 700; border: 0; border-radius: var(--radius); padding: 14px 18px; background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; text-align: center; text-decoration: none; display: inline-block; }
+.button:hover { background: var(--accent-hover); }
+.button.secondary { background: var(--tone); color: var(--ink); }
+.switch { margin-top: var(--space-2); font-size: 15px; color: var(--muted); }
+.meta { color: var(--muted); font-size: 15px; overflow-wrap: anywhere; }
