@@ -2,6 +2,7 @@ import type { Context, Hono } from "hono";
 import { html } from "hono/html";
 import type { OwnerSession } from "../shared/accounts-db";
 import { page } from "../shared/layout";
+import { deletePhotos, detectImage, MAX_PHOTO_BYTES, newPhotoKey } from "../shared/media";
 import { planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
@@ -76,12 +77,28 @@ function readDishForm(form: FormData): DishForm {
   return result;
 }
 
+function photoSection(item: { id: string; name: string; photoKey: string | null }) {
+  return html`<section class="card form photo-section" aria-labelledby="photo-heading">
+<h2 id="photo-heading">Photo</h2>
+${item.photoKey ? html`<img class="photo-large" src="/media/${item.photoKey}" alt="${item.name}" width="240" height="240">` : html`<p class="empty">No photo yet. A photo helps customers choose.</p>`}
+<form method="post" action="/items/${item.id}/photo" enctype="multipart/form-data" class="form" data-photo-form>
+<div class="field"><label for="photo">${item.photoKey ? "Change photo" : "Add photo"}</label>
+<input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="photo-hint">
+<p class="hint" id="photo-hint">JPG, PNG, or WEBP. We make it smaller so the menu loads fast.</p></div>
+<button class="button" type="submit">Upload photo</button>
+</form>
+${item.photoKey ? html`<form method="post" action="/items/${item.id}/photo/delete"><button class="button secondary" type="submit">Remove photo</button></form>` : ""}
+</section>
+<script src="/photo.js" defer></script>`;
+}
+
 function dishPage(
   title: string,
   action: string,
   categories: { id: string; name: string }[],
   values: { categoryId: string; name: string; description: string; rows: { label: string; amount: string }[] },
   error = "",
+  photo: { id: string; name: string; photoKey: string | null } | null = null,
 ) {
   const rows = [...values.rows];
   while (rows.length < PRICE_ROWS) rows.push({ label: "", amount: "" });
@@ -107,7 +124,8 @@ ${rows.map(
 </fieldset>
 <button class="button" type="submit">Save dish</button>
 <a class="button secondary" href="/?c=${values.categoryId}">Cancel</a>
-</form>`,
+</form>
+${photo ? photoSection(photo) : ""}`,
   );
 }
 
@@ -126,6 +144,7 @@ function confirmPage(title: string, message: string, action: string, back: strin
 
 function dishRow(item: Item) {
   return html`<li class="dish">
+${item.photoKey ? html`<img class="thumb" src="/media/${item.photoKey}" alt="" width="56" height="56" loading="lazy">` : html`<span class="thumb empty-thumb" aria-hidden="true"></span>`}
 <div class="dish-main"><strong>${item.name}</strong>
 ${item.description ? html`<span class="meta">${item.description}</span>` : ""}
 <span class="price-list">${item.prices.map((p) => html`<span class="pill">${p.label ? `${p.label} ` : ""}${money(p.amountMinor)}</span>`)}</span></div>
@@ -238,7 +257,13 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
   });
 
   app.post("/categories/:id/delete", async (c) => {
-    await menuDb(c).deleteCategory(c.req.param("id"));
+    const db = menuDb(c);
+    const id = c.req.param("id");
+    // Read the photo keys first, because the dish rows are gone after the delete.
+    const photos = await db.photoKeysInCategory(id);
+    if (await db.deleteCategory(id)) {
+      await deletePhotos(c.env.MEDIA, photos);
+    }
     return c.redirect("/", 303);
   });
 
@@ -281,7 +306,7 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
         name: item.name,
         description: item.description ?? "",
         rows: item.prices.map((p) => ({ label: p.label, amount: String(p.amountMinor / 100) })),
-      }),
+      }, "", item),
     );
   });
 
@@ -319,6 +344,46 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     const item = await db.getItem(c.req.param("id"));
     if (!item) return notFound(c);
     await db.deleteItem(item.id);
+    await deletePhotos(c.env.MEDIA, [item.photoKey]);
     return c.redirect(`/?c=${encodeURIComponent(item.categoryId)}`, 303);
+  });
+
+  app.post("/items/:id/photo", async (c) => {
+    const owner = c.get("owner");
+    const db = menuDb(c);
+    // Ownership is checked before anything is stored (Law 18).
+    const item = await db.getItem(c.req.param("id"));
+    if (!item) return notFound(c);
+    const file = (await c.req.formData()).get("photo");
+    const back = html`<p><a href="/items/${item.id}/edit">Back to ${item.name}</a></p>`;
+    if (!(file instanceof File) || file.size === 0) {
+      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">Choose a photo first.</p>${back}`), 400);
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">The photo is larger than 1 MB. Try a smaller one.</p>${back}`), 400);
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = detectImage(bytes);
+    if (!type) {
+      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">Use a JPG, PNG, or WEBP photo.</p>${back}`), 400);
+    }
+    const key = newPhotoKey(owner.restaurantId, type);
+    await c.env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type.contentType } });
+    if (!(await db.setItemPhoto(item.id, key))) {
+      // The dish was deleted in the meantime, so the new file is not needed.
+      await deletePhotos(c.env.MEDIA, [key]);
+      return notFound(c);
+    }
+    await deletePhotos(c.env.MEDIA, [item.photoKey]);
+    return c.redirect(`/items/${item.id}/edit`, 303);
+  });
+
+  app.post("/items/:id/photo/delete", async (c) => {
+    const db = menuDb(c);
+    const item = await db.getItem(c.req.param("id"));
+    if (!item) return notFound(c);
+    await db.setItemPhoto(item.id, null);
+    await deletePhotos(c.env.MEDIA, [item.photoKey]);
+    return c.redirect(`/items/${item.id}/edit`, 303);
   });
 }

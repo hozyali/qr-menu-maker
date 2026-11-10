@@ -77,3 +77,16 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
   .dish { grid-template-columns: 1fr auto; }
   .dish-main { grid-column: 1 / -1; }
 }
+
+/* Dish photos */
+.dish { grid-template-columns: 56px minmax(0, 1fr) auto auto auto; }
+.thumb { width: 56px; height: 56px; border-radius: var(--radius); object-fit: cover; background: var(--tone); display: block; }
+.empty-thumb { border: 1px dashed #8f8b84; background: transparent; }
+.photo-section { margin-top: var(--space-3); }
+.photo-section h2 { margin: 0; font-size: 20px; }
+.photo-large { width: 240px; height: 240px; max-width: 100%; border-radius: var(--radius); object-fit: cover; background: var(--tone); }
+.field input[type="file"] { padding: 10px; }
+@media (max-width: 640px) {
+  .dish { grid-template-columns: 56px 1fr auto; }
+  .dish-main { grid-column: 2 / -1; }
+}

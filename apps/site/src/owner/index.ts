@@ -14,6 +14,7 @@ import {
   slugExists,
 } from "../shared/accounts-db";
 import { page } from "../shared/layout";
+import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
@@ -33,6 +34,9 @@ ownerApp.use("*", csrf({ origin: (origin, c) => origin === new URL(c.req.url).or
 // The shared stylesheet and logo live with the static files, under fixed names only.
 ownerApp.get("/app.css", (c) => c.env.ASSETS.fetch(new URL("/app/app.css", c.req.url)));
 ownerApp.get("/logo.svg", (c) => c.env.ASSETS.fetch(new URL("/logo.svg", c.req.url)));
+ownerApp.get("/photo.js", (c) => c.env.ASSETS.fetch(new URL("/app/photo.js", c.req.url)));
+// Dish photos on the same hostname, so the dashboard needs no extra image source in its CSP.
+ownerApp.get("/media/*", (c) => serveMedia(c.env.MEDIA, c.req.path));
 
 // A rough per-address limit on account forms. The database lockout below is the strict one.
 async function tooManyRequests(c: { env: Env; req: { raw: Request; path: string } }): Promise<boolean> {
