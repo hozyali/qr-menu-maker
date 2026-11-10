@@ -1,0 +1,59 @@
+import { env } from "cloudflare:workers";
+import { vi } from "vitest";
+import { handleRequest } from "../src/index";
+
+// Shared helpers for tests that drive the owner area through real HTTP requests.
+export const APP = "https://app.tomatofry.com";
+export const db = env.DB;
+
+let ipCounter = 1;
+const nextIp = () => `203.0.113.${ipCounter++ % 250}`;
+
+export function post(path: string, form: Record<string, string | string[]>, cookie?: string) {
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(form)) {
+    for (const item of Array.isArray(value) ? value : [value]) body.append(key, item);
+  }
+  const headers = new Headers({
+    "content-type": "application/x-www-form-urlencoded",
+    origin: APP,
+    "cf-connecting-ip": nextIp(),
+  });
+  if (cookie) headers.set("cookie", cookie);
+  return handleRequest(new Request(`${APP}${path}`, { method: "POST", headers, body }), env);
+}
+
+export function get(path: string, cookie?: string) {
+  const headers = new Headers();
+  if (cookie) headers.set("cookie", cookie);
+  return handleRequest(new Request(`${APP}${path}`, { headers }), env);
+}
+
+/** The Turnstile service is outside our system, so its answer is replaced in tests. */
+export function passTurnstile() {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+    Response.json({ success: true, hostname: "app.tomatofry.com" }),
+  );
+}
+
+let counter = 0;
+/** Signs up a new owner and returns their session cookie and restaurant id. */
+export async function newOwner(name = "Test Kitchen") {
+  counter++;
+  const email = `menu-owner${counter}@example.test`;
+  const response = await post("/signup", {
+    email,
+    password: "correct horse battery",
+    phone: "0300 1234567",
+    restaurant: `${name} ${counter}`,
+    city: "Lahore",
+    "cf-turnstile-response": "token",
+  });
+  const cookie = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+  const row = await db
+    .prepare("SELECT r.id FROM restaurants r JOIN users u ON u.id = r.owner_user_id WHERE u.email = ?")
+    .bind(email)
+    .first<{ id: string }>();
+  if (!cookie || !row) throw new Error("Test signup failed");
+  return { cookie, restaurantId: row.id };
+}
