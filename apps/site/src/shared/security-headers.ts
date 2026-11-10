@@ -5,7 +5,7 @@ const STRICT_POLICY =
 
 // The owner area also loads Cloudflare Turnstile on its signup form.
 const OWNER_POLICY =
-  "default-src 'none'; script-src https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+  "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 // The home page also needs Google Fonts and its own script.
 const SITE_POLICY =

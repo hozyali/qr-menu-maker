@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-10T14:06Z` Dish photos: upload, change, and remove, shrunk in the browser, checked by file bytes on the server, and stored in R2 per restaurant.
 - `2026-11-10T13:58Z` Owner dashboard for categories, dishes, prices, and availability, with plan limits read from one place.
 - `2026-11-10T13:37Z` Production Turnstile site key, which turns on signup once the secret key is set.
 - `2026-11-10T13:31Z` Owner signup, login, and logout on `app.tomatofry.com`, with hashed passwords and sessions, a login lockout, a rate limit, same-site form checks, and Turnstile.

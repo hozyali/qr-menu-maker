@@ -25,6 +25,8 @@ export interface Item {
   name: string;
   description: string | null;
   isAvailable: boolean;
+  /** R2 key of the dish photo, or null. */
+  photoKey: string | null;
   prices: Price[];
 }
 
@@ -131,7 +133,7 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       const [itemResult, priceResult] = await db.batch<Record<string, unknown>>([
         db
           .prepare(
-            "SELECT id, category_id, name, description, is_available FROM items WHERE restaurant_id = ? AND category_id = ? ORDER BY sort_order, id",
+            "SELECT id, category_id, name, description, is_available, photo_key FROM items WHERE restaurant_id = ? AND category_id = ? ORDER BY sort_order, id",
           )
           .bind(restaurantId, categoryId),
         db
@@ -154,6 +156,7 @@ export function tenantDb(db: D1Database, restaurantId: string) {
         name: String(row.name),
         description: row.description === null ? null : String(row.description),
         isAvailable: row.is_available === 1,
+        photoKey: row.photo_key === null ? null : String(row.photo_key),
         prices: pricesByItem.get(String(row.id)) ?? [],
       }));
     },
@@ -206,6 +209,24 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       return meta.changes > 0;
     },
 
+    /** Sets or clears the dish photo. Returns false if this restaurant has no such dish. */
+    async setItemPhoto(id: string, photoKey: string | null): Promise<boolean> {
+      const { meta } = await db
+        .prepare("UPDATE items SET photo_key = ?, updated_at = ? WHERE restaurant_id = ? AND id = ?")
+        .bind(photoKey, Date.now(), restaurantId, id)
+        .run();
+      return meta.changes > 0;
+    },
+
+    /** Photo keys of every dish in a category, so the files can be removed with it. */
+    async photoKeysInCategory(categoryId: string): Promise<string[]> {
+      const { results } = await db
+        .prepare("SELECT photo_key FROM items WHERE restaurant_id = ? AND category_id = ? AND photo_key IS NOT NULL")
+        .bind(restaurantId, categoryId)
+        .all<{ photo_key: string }>();
+      return results.map((row) => row.photo_key);
+    },
+
     /** Returns false if this restaurant has no such dish. Its prices are removed with it. */
     async deleteItem(id: string): Promise<boolean> {
       const { meta } = await db
@@ -220,7 +241,7 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       const [itemResult, priceResult] = await db.batch<Record<string, unknown>>([
         db
           .prepare(
-            "SELECT id, category_id, name, description, is_available FROM items WHERE restaurant_id = ? AND id = ?",
+            "SELECT id, category_id, name, description, is_available, photo_key FROM items WHERE restaurant_id = ? AND id = ?",
           )
           .bind(restaurantId, id),
         db
@@ -239,6 +260,7 @@ export function tenantDb(db: D1Database, restaurantId: string) {
         name: String(row.name),
         description: row.description === null ? null : String(row.description),
         isAvailable: row.is_available === 1,
+        photoKey: row.photo_key === null ? null : String(row.photo_key),
         prices: (priceResult?.results ?? []).map((price) => ({
           label: String(price.label),
           amountMinor: Number(price.amount_minor),
