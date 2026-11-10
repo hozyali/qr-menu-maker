@@ -19,8 +19,9 @@
   ],
   // Rough per-address limit for signup and login. Wrangler does not inherit this into environments.
   "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "47011", "simple": { "limit": 10, "period": 60 } }],
-  // Public values. The Turnstile site key is added once the owner creates the widget.
-  "vars": { "TURNSTILE_HOSTNAME": "app.tomatofry.com" },
+  // Public values. The Turnstile site key is shown on the signup page. Its secret key is a
+  // `wrangler secret`, never stored here (Law 21).
+  "vars": { "TURNSTILE_HOSTNAME": "app.tomatofry.com", "TURNSTILE_SITE_KEY": "0x4AAAAAAF7Yp6O_XxmPFGog" },
   "d1_databases": [{ "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "migrations_dir": "migrations" }],
   "env": {
     // `wrangler dev` rewrites every hostname to the first route, which hides the area routing.
