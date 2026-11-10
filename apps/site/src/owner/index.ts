@@ -16,6 +16,7 @@ import {
 import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
+import { registerThemeRoutes } from "./theme";
 import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
 import { type FieldErrors, normalizeEmail, readText, slugify, validateSignup } from "../shared/validation";
@@ -208,3 +209,5 @@ ownerApp.use("*", async (c, next) => {
 
 // The menu dashboard and editing pages.
 registerMenuRoutes(ownerApp);
+// The menu theme editor.
+registerThemeRoutes(ownerApp);

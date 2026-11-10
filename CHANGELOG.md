@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-10T14:32Z` Public menu at `tomatofry.com/r/<slug>` with categories, dishes, photos, prices, Call, WhatsApp, and Map links, and "Powered by TomatoFry" on the Free plan. Its queries return public fields only and are proven to use indexes.
+- `2026-11-10T14:32Z` Menu theme editor: any brand colour, light or dark background, and large or small photos. Text colours are chosen automatically to keep WCAG AA contrast. Needs migration `0002_menu_theme.sql`.
 - `2026-11-10T14:06Z` Dish photos: upload, change, and remove, shrunk in the browser, checked by file bytes on the server, and stored in R2 per restaurant.
 - `2026-11-10T13:58Z` Owner dashboard for categories, dishes, prices, and availability, with plan limits read from one place.
 - `2026-11-10T13:37Z` Production Turnstile site key, which turns on signup once the secret key is set.
