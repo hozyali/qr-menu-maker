@@ -20,6 +20,20 @@ export function detectImage(bytes: Uint8Array): ImageType | null {
   return null;
 }
 
+export type UploadCheck =
+  | { ok: true; bytes: Uint8Array; type: ImageType }
+  | { ok: false; error: string };
+
+/** The same upload checks for dish photos and logos: present, at most 1 MB, and a real JPG, PNG, or WEBP. */
+export async function checkImageUpload(file: File | string | null): Promise<UploadCheck> {
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a photo first." };
+  if (file.size > MAX_PHOTO_BYTES) return { ok: false, error: "The photo is larger than 1 MB. Try a smaller one." };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const type = detectImage(bytes);
+  if (!type) return { ok: false, error: "Use a JPG, PNG, or WEBP photo." };
+  return { ok: true, bytes, type };
+}
+
 export function newPhotoKey(restaurantId: string, type: ImageType): string {
   return `restaurants/${restaurantId}/${crypto.randomUUID()}.${type.extension}`;
 }

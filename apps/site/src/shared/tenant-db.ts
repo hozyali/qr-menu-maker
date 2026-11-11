@@ -1,6 +1,12 @@
 // All restaurant data goes through this helper, so every query is limited to one restaurant (Law 18).
 // The restaurant id must come from the login session, never from anything the browser sends.
 import { type Theme, toTheme } from "./theme";
+import type { ProfileInput } from "./validation";
+
+export interface Profile extends ProfileInput {
+  slug: string;
+  logoKey: string | null;
+}
 
 export interface Category {
   id: string;
@@ -53,6 +59,48 @@ export function tenantDb(db: D1Database, restaurantId: string) {
     );
 
   return {
+    /** The restaurant's own details (issue #28). The slug is read only: it never changes (Law 28). */
+    async getProfile(): Promise<Profile | null> {
+      const row = await db
+        .prepare("SELECT name, slug, city, address, phone, whatsapp, maps_url, hours, note, logo_key FROM restaurants WHERE id = ?")
+        .bind(restaurantId)
+        .first<Record<string, string | null>>();
+      if (!row) return null;
+      return {
+        name: row.name ?? "",
+        slug: row.slug ?? "",
+        city: row.city ?? "",
+        address: row.address ?? "",
+        phone: row.phone ?? "",
+        whatsapp: row.whatsapp ?? "",
+        mapsUrl: row.maps_url ?? "",
+        hours: row.hours ?? "",
+        note: row.note ?? "",
+        logoKey: row.logo_key ?? null,
+      };
+    },
+
+    /** Saves the checked details. Empty optional fields are stored as NULL. The slug is never written. */
+    async updateProfile(p: ProfileInput): Promise<void> {
+      const orNull = (value: string) => (value ? value : null);
+      await db
+        .prepare(
+          `UPDATE restaurants SET name = ?, city = ?, address = ?, phone = ?, whatsapp = ?, maps_url = ?, hours = ?, note = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .bind(p.name, p.city, orNull(p.address), p.phone, orNull(p.whatsapp), orNull(p.mapsUrl), orNull(p.hours), orNull(p.note), Date.now(), restaurantId)
+        .run();
+    },
+
+    /** Sets or clears the logo. Returns the previous key, so its file can be deleted. */
+    async setLogo(logoKey: string | null): Promise<string | null> {
+      const [before] = await db.batch<{ logo_key: string | null }>([
+        db.prepare("SELECT logo_key FROM restaurants WHERE id = ?").bind(restaurantId),
+        db.prepare("UPDATE restaurants SET logo_key = ?, updated_at = ? WHERE id = ?").bind(logoKey, Date.now(), restaurantId),
+      ]);
+      return before?.results[0]?.logo_key ?? null;
+    },
+
     /** The menu theme of this restaurant (issue #24). */
     async getTheme(): Promise<Theme> {
       const row = await db
