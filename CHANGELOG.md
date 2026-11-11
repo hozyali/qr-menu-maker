@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `2026-11-10T15:32Z` Security: development tools now use `minimatch` 11.0.5, which fixes a moderate denial of service advisory (GHSA-g3hv-75wg-m249). The deployed Worker never used this package.
 - `2026-11-06T14:34Z` The migration safety check no longer blocks `ON DELETE CASCADE` and `BEFORE DELETE`.
 - `2026-11-06T14:14Z` A failed AI review now prints its final error message.
 - `2026-11-06T14:06Z` The migration safety check now catches destructive statements split across lines.
