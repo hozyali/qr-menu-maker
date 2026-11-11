@@ -1,19 +1,8 @@
 import { Hono } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { html, raw } from "hono/html";
-import {
-  clearLoginFailures,
-  createOwner,
-  createSession,
-  deleteSession,
-  findOwnerLogin,
-  findOwnerSession,
-  isLoginLocked,
-  recordLoginFailure,
-  menuCodeExists,
-  slugExists,
-} from "../shared/accounts-db";
+import { createOwner, findOwnerLogin, findOwnerSession, menuCodeExists, slugExists } from "../shared/accounts-db";
+import { checkLogin, endSession, sessionToken, startSession, tooManyRequests } from "../shared/auth";
 import { newMenuCode } from "../shared/menu-link";
 import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
@@ -21,16 +10,15 @@ import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { registerProfileRoutes } from "./profile";
 import { registerQrRoutes } from "./qr";
 import { registerThemeRoutes } from "./theme";
-import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
+import { hashPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
 import { type FieldErrors, normalizeEmail, readText, slugify, validateSignup } from "../shared/validation";
 
 // Owner area on app.tomatofry.com. It never serves the static site files.
 export const ownerApp = new Hono<OwnerEnv>();
 
-const SESSION_COOKIE = "session"; // Sent as "__Host-session" because of the "host" prefix.
-const SESSION_DAYS = 7;
-const GENERIC_LOGIN_ERROR = "Email or password is wrong.";
+// Owner sessions last 7 days. The shared login and session rules live in shared/auth.ts (issue #34).
+const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const GENERIC_SIGNUP_ERROR = "We could not create this account. If you already have one, log in instead.";
 
 // Form posts must come from this same site (Law 19).
@@ -43,24 +31,6 @@ ownerApp.get("/photo.js", (c) => c.env.ASSETS.fetch(new URL("/app/photo.js", c.r
 ownerApp.get("/print.js", (c) => c.env.ASSETS.fetch(new URL("/app/print.js", c.req.url)));
 // Dish photos on the same hostname, so the dashboard needs no extra image source in its CSP.
 ownerApp.get("/media/*", (c) => serveMedia(c.env.MEDIA, c.req.path));
-
-// A rough per-address limit on account forms. The database lockout below is the strict one.
-async function tooManyRequests(c: { env: Env; req: { raw: Request; path: string } }): Promise<boolean> {
-  const ip = c.req.raw.headers.get("cf-connecting-ip") ?? "unknown";
-  const { success } = await c.env.AUTH_LIMITER.limit({ key: `${ip}:${c.req.path}` });
-  return !success;
-}
-
-async function startSession(c: Parameters<typeof setCookie>[0], db: D1Database, userId: string) {
-  const token = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  const maxAge = SESSION_DAYS * 24 * 60 * 60;
-  await createSession(db, userId, token, Date.now() + maxAge * 1000);
-  // No Domain attribute, so only this exact hostname receives the cookie (Law 19).
-  setCookie(c, SESSION_COOKIE, token, { prefix: "host", path: "/", secure: true, httpOnly: true, sameSite: "Lax", maxAge });
-}
 
 function fieldBlock(name: string, label: string, type: string, value: string, errors: FieldErrors, extra = "", hint = "") {
   const error = errors[name];
@@ -173,7 +143,7 @@ ownerApp.post("/signup", async (c) => {
     // to find out who has an account.
     return c.html(signupPage(c.env.TURNSTILE_SITE_KEY, shown, {}, GENERIC_SIGNUP_ERROR), 400);
   }
-  await startSession(c, c.env.DB, userId);
+  await startSession(c, c.env.DB, userId, SESSION_SECONDS);
   return c.redirect("/", 303);
 });
 
@@ -183,37 +153,21 @@ ownerApp.post("/login", async (c) => {
   if (await tooManyRequests(c)) {
     return c.html(loginPage("", "Too many attempts. Please wait a minute."), 429);
   }
-  const form = await c.req.formData();
-  const email = normalizeEmail(readText(form, "email"));
-  const password = typeof form.get("password") === "string" ? String(form.get("password")) : "";
-  const attemptKey = `login:${email}`;
-  const now = Date.now();
-
-  if (await isLoginLocked(c.env.DB, attemptKey, now)) {
-    return c.html(loginPage(email, "Too many failed logins. Try again in 15 minutes."), 429);
-  }
-  const login = email.length <= 254 && password.length <= 128 ? await findOwnerLogin(c.env.DB, email) : null;
-  // An unknown email still runs a hash, so both failures take about the same time.
-  const valid = await verifyPassword(password, login?.passwordHash ?? (await getDummyHash()));
-  if (!login || !valid) {
-    await recordLoginFailure(c.env.DB, attemptKey, now);
-    return c.html(loginPage(email, GENERIC_LOGIN_ERROR), 401);
-  }
-  await clearLoginFailures(c.env.DB, attemptKey);
-  await startSession(c, c.env.DB, login.userId);
+  // Only owners with a restaurant can log in here. Admin accounts are refused (issue #34).
+  const result = await checkLogin(c.env.DB, await c.req.formData(), findOwnerLogin, "login");
+  if (!result.ok) return c.html(loginPage(result.email, result.message), result.status);
+  await startSession(c, c.env.DB, result.userId, SESSION_SECONDS);
   return c.redirect("/", 303);
 });
 
 ownerApp.post("/logout", async (c) => {
-  const token = getCookie(c, SESSION_COOKIE, "host");
-  if (token) await deleteSession(c.env.DB, token);
-  deleteCookie(c, SESSION_COOKIE, { prefix: "host", path: "/", secure: true });
+  await endSession(c, c.env.DB);
   return c.redirect("/login", 303);
 });
 
 // Every route below needs a logged-in owner. The restaurant comes from the session only (Law 18).
 ownerApp.use("*", async (c, next) => {
-  const token = getCookie(c, SESSION_COOKIE, "host");
+  const token = sessionToken(c);
   const owner = token ? await findOwnerSession(c.env.DB, token, Date.now()) : null;
   if (!owner) return c.redirect("/login", 303);
   c.set("owner", owner);

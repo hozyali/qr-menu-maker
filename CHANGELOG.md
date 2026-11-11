@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-11T13:56Z` Admin login and logout on `admin.tomatofry.com`, with the admin role checked on the server on every request, 12-hour sessions, the login lockout, and the rate limit. Owner and admin accounts cannot cross into each other's area. Adds `scripts/create-admin.mjs` to create admin accounts, since signup never does. Login and session code is now shared by both areas.
 - `2026-11-11T13:17Z` Menu QR code page with a PNG download and a printable table card. The code always points to `https://tomatofry.com/r/<slug>`, so printed cards keep working. Adds the `uqr` library for the QR matrix.
 - `2026-11-11T13:08Z` Restaurant profile page with name, city, address, phone, WhatsApp, Google Maps link, hours, and a note, plus logo upload. The public menu shows the logo and these details, and its WhatsApp and Map buttons now work. Only Google Maps links are accepted. The menu link never changes.
 - `2026-11-10T14:32Z` Public menu at `tomatofry.com/r/<slug>` with categories, dishes, photos, prices, Call, WhatsApp, and Map links, and "Powered by TomatoFry" on the Free plan. Its queries return public fields only and are proven to use indexes.

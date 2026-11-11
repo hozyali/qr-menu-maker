@@ -26,10 +26,11 @@ describe("hostname routing", () => {
   });
 
   it("serves the admin area on the admin hostname", async () => {
-    const response = await get("https://admin.tomatofry.com/");
+    // The admin home needs a login since issue #34, so the public login page is checked here.
+    const response = await get("https://admin.tomatofry.com/login");
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("TomatoFry admin");
+    expect(body).toContain("Admin log in");
     expect(body).not.toContain(LANDING);
   });
 
@@ -46,8 +47,8 @@ describe("hostname routing", () => {
   });
 
   it("routes local development hostnames the same way", async () => {
-    const response = await get("http://admin.localhost:8787/");
-    expect(await response.text()).toContain("TomatoFry admin");
+    const response = await get("http://admin.localhost:8787/login");
+    expect(await response.text()).toContain("Admin log in");
   });
 });
 

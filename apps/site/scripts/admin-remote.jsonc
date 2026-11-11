@@ -1,0 +1,10 @@
+{
+  // Used only by scripts/create-admin.mjs --remote (issue #34). It is never deployed.
+  // "remote": true makes Wrangler connect this binding to the live D1 database through your
+  // `wrangler login`, so the script can run a bound query (Law 17) without an API token.
+  "name": "tomatofry-create-admin",
+  "compatibility_date": "2026-05-22",
+  "d1_databases": [
+    { "binding": "DB", "database_name": "tomatofry-db", "database_id": "73eb4548-32b8-4916-8020-11678119145a", "remote": true }
+  ]
+}
