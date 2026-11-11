@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import type { OwnerSession } from "../shared/accounts-db";
 import { page } from "../shared/layout";
 import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
+import { menuLink, menuPath } from "../shared/menu-link";
 import { formatMoney } from "../shared/money";
 import { planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
@@ -194,7 +195,7 @@ ${notice === "limit" ? html`<p class="error" role="alert">You have used all ${li
 <div class="stats">
 <div class="stat"><span class="meta">Plan</span><strong>${owner.plan === "pro" ? "Pro" : "Free"}</strong></div>
 <div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${used} of ${limit}`}</strong></div>
-<div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}/r/${owner.slug}" target="_blank" rel="noopener"><strong>tomatofry.com/r/${owner.slug}</strong></a></div>
+<div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}${menuPath(owner.menuCode, owner.restaurantName, owner.city)}" target="_blank" rel="noopener"><strong>${menuLink(owner.menuCode, owner.restaurantName, owner.city).replace("https://", "")}</strong></a></div>
 </div>
 <nav class="tabs" aria-label="Categories">
 ${categories.map(

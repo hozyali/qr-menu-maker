@@ -3,16 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleRequest } from "../src/index";
 import { PUBLIC_MENU_SQL } from "../src/shared/public-menu-db";
 import { contrastRatio, themeColors } from "../src/shared/theme";
-import { db, get, newOwner, passTurnstile, post } from "./helpers";
+import { codeOf, db, get, newOwner, passTurnstile, post } from "./helpers";
 
 beforeEach(() => passTurnstile());
 afterEach(() => vi.restoreAllMocks());
 
 const site = (path: string) => handleRequest(new Request(`https://tomatofry.com${path}`), env);
 
-async function slugOf(restaurantId: string) {
-  return (await db.prepare("SELECT slug FROM restaurants WHERE id = ?").bind(restaurantId).first<{ slug: string }>())?.slug ?? "";
-}
 
 /** An owner with a two-category menu. */
 async function ownerWithMenu(name: string) {
@@ -30,13 +27,13 @@ async function ownerWithMenu(name: string) {
   await post("/items", { category_id: drinks, name: `${name} lassi`, price_label: [""], price_amount: ["350"] }, owner.cookie);
   const mutton = await db.prepare("SELECT id FROM items WHERE name = ?").bind(`${name} mutton karahi`).first<{ id: string }>();
   await post(`/items/${mutton?.id}/availability`, { available: "0" }, owner.cookie);
-  return { ...owner, slug: await slugOf(owner.restaurantId) };
+  return { ...owner, code: await codeOf(owner.restaurantId) };
 }
 
 describe("public menu page", () => {
   it("shows the restaurant, categories, dishes, and prices", async () => {
     const owner = await ownerWithMenu("Menu One");
-    const response = await site(`/r/${owner.slug}`);
+    const response = await site(`/r/${owner.code}`);
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("Menu One");
@@ -49,7 +46,7 @@ describe("public menu page", () => {
 
   it("marks a dish that is not available today", async () => {
     const owner = await ownerWithMenu("Menu Two");
-    const body = await (await site(`/r/${owner.slug}`)).text();
+    const body = await (await site(`/r/${owner.code}`)).text();
     const mutton = body.slice(body.indexOf("Menu Two mutton karahi"));
     expect(mutton.slice(0, 400)).toContain("Not available today");
   });
@@ -57,25 +54,25 @@ describe("public menu page", () => {
   it("shows only this restaurant's dishes", async () => {
     const a = await ownerWithMenu("Isolated A");
     await ownerWithMenu("Isolated B");
-    const body = await (await site(`/r/${a.slug}`)).text();
+    const body = await (await site(`/r/${a.code}`)).text();
     expect(body).toContain("Isolated A chicken karahi");
     expect(body).not.toContain("Isolated B");
   });
 
   it("never shows private account details", async () => {
     const owner = await ownerWithMenu("Private Fields");
-    const body = await (await site(`/r/${owner.slug}`)).text();
+    const body = await (await site(`/r/${owner.code}`)).text();
     expect(body).not.toContain("@example.test");
     expect(body).not.toContain("pbkdf2");
   });
 
   it("shows Powered by on Free and hides it on active Pro", async () => {
     const owner = await ownerWithMenu("Plan Check");
-    expect(await (await site(`/r/${owner.slug}`)).text()).toContain("Powered by TomatoFry");
+    expect(await (await site(`/r/${owner.code}`)).text()).toContain("Powered by TomatoFry");
     await db.prepare("UPDATE restaurants SET plan = 'pro', plan_expires_at = NULL WHERE id = ?").bind(owner.restaurantId).run();
-    expect(await (await site(`/r/${owner.slug}`)).text()).not.toContain("Powered by TomatoFry");
+    expect(await (await site(`/r/${owner.code}`)).text()).not.toContain("Powered by TomatoFry");
     await db.prepare("UPDATE restaurants SET plan_expires_at = 1 WHERE id = ?").bind(owner.restaurantId).run();
-    const expired = await site(`/r/${owner.slug}`);
+    const expired = await site(`/r/${owner.code}`);
     expect(expired.status).toBe(200);
     expect(await expired.text()).toContain("Powered by TomatoFry");
   });
@@ -83,7 +80,7 @@ describe("public menu page", () => {
   it("shows a suspended restaurant as unavailable", async () => {
     const owner = await ownerWithMenu("Suspended Place");
     await db.prepare("UPDATE restaurants SET status = 'suspended' WHERE id = ?").bind(owner.restaurantId).run();
-    const body = await (await site(`/r/${owner.slug}`)).text();
+    const body = await (await site(`/r/${owner.code}`)).text();
     expect(body).toContain("This menu is currently unavailable");
     expect(body).not.toContain("Suspended Place chicken karahi");
   });
@@ -95,7 +92,7 @@ describe("public menu page", () => {
 
   it("links to a call button with the restaurant phone", async () => {
     const owner = await ownerWithMenu("Phone Place");
-    const body = await (await site(`/r/${owner.slug}`)).text();
+    const body = await (await site(`/r/${owner.code}`)).text();
     expect(body).toMatch(/href="tel:\+?\d+"/);
   });
 
@@ -105,7 +102,7 @@ describe("public menu page", () => {
     // Empty categories are hidden on the public menu, so the category gets one dish.
     const category = await db.prepare("SELECT id FROM categories WHERE restaurant_id = ?").bind(owner.restaurantId).first<{ id: string }>();
     await post("/items", { category_id: category?.id ?? "", name: "<i>Dish</i>", price_label: [""], price_amount: ["100"] }, owner.cookie);
-    const body = await (await site(`/r/${await slugOf(owner.restaurantId)}`)).text();
+    const body = await (await site(`/r/${await codeOf(owner.restaurantId)}`)).text();
     expect(body).not.toContain("<b>Bold</b>");
     expect(body).toContain("&lt;b&gt;Bold&lt;/b&gt;");
     expect(body).not.toContain("<i>Dish</i>");
@@ -126,11 +123,11 @@ describe("theme", () => {
   it("serves the restaurant's theme as a stylesheet", async () => {
     const owner = await ownerWithMenu("Theme Sheet");
     await post("/theme", { color: "#0f6e56", mode: "dark", photos: "small" }, owner.cookie);
-    const css = await site(`/r/${owner.slug}/theme.css`);
+    const css = await site(`/r/${owner.code}/theme.css`);
     expect(css.headers.get("content-type")).toContain("text/css");
     const text = await css.text();
     expect(text).toContain("#0f6e56");
-    const page = await (await site(`/r/${owner.slug}`)).text();
+    const page = await (await site(`/r/${owner.code}`)).text();
     expect(page).toContain('class="menu dark photos-small"');
   });
 
@@ -168,5 +165,49 @@ describe("theme", () => {
     await post("/theme", { color: "#3c3489", mode: "dark", photos: "small" }, a.cookie);
     const row = await db.prepare("SELECT theme_color FROM restaurants WHERE id = ?").bind(b.restaurantId).first<{ theme_color: string }>();
     expect(row?.theme_color).toBe("#c8321f");
+  });
+});
+
+describe("menu links by code", () => {
+  const CODE = /^[23456789abcdefghjkmnpqrstuvwxyz]{6}$/;
+
+  it("gives every new restaurant its own six-character code", async () => {
+    const a = await newOwner("Code Same");
+    const b = await newOwner("Code Same");
+    const [codeA, codeB] = [await codeOf(a.restaurantId), await codeOf(b.restaurantId)];
+    expect(codeA).toMatch(CODE);
+    expect(codeB).toMatch(CODE);
+    expect(codeA).not.toBe(codeB);
+  });
+
+  it("opens the menu with or without a name, and the name never changes which menu opens", async () => {
+    const owner = await ownerWithMenu("Code Open");
+    for (const path of [`/r/${owner.code}`, `/r/${owner.code}/code-open-lahore`, `/r/${owner.code}/an-old-name`, `/r/${owner.code}/anything-at-all`]) {
+      const response = await site(path);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("Code Open chicken karahi");
+    }
+  });
+
+  it("tells search engines the link with the current name and city", async () => {
+    const owner = await ownerWithMenu("Canonical Place");
+    await post("/profile", { name: "Bismillah Karahi", city: "Islamabad", phone: "0300 1234567" }, owner.cookie);
+    const body = await (await site(`/r/${owner.code}/an-old-name`)).text();
+    expect(body).toContain(`<link rel="canonical" href="https://tomatofry.com/r/${owner.code}/bismillah-karahi-islamabad">`);
+  });
+
+  it("returns 404 for an unknown code and for the old name-only links", async () => {
+    expect((await site("/r/zzzzzz")).status).toBe(404);
+    expect((await site("/r/zzzzzz/some-name")).status).toBe(404);
+    const owner = await ownerWithMenu("Old Style");
+    const slug = (await db.prepare("SELECT slug FROM restaurants WHERE id = ?").bind(owner.restaurantId).first<{ slug: string }>())?.slug;
+    expect((await site(`/r/${slug}`)).status).toBe(404);
+  });
+
+  it("shows the owner the link with the name, and links the dashboard to it", async () => {
+    const owner = await newOwner("Dashboard Link");
+    const code = await codeOf(owner.restaurantId);
+    const body = await (await get("/", owner.cookie)).text();
+    expect(body).toMatch(new RegExp(`tomatofry\\.com/r/${code}/dashboard-link-\\d+-lahore`));
   });
 });

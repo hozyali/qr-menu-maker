@@ -1,17 +1,18 @@
 import type { Hono } from "hono";
 import { html, raw } from "hono/html";
 import { page } from "../shared/layout";
-import { menuUrl, qrPng, qrSvg } from "../shared/qr";
+import { menuUrl } from "../shared/menu-link";
+import { qrPng, qrSvg } from "../shared/qr";
 import { tenantDb } from "../shared/tenant-db";
 import type { OwnerEnv } from "./menu";
 
 // QR code page, PNG download, and print card (issue #30).
-// The slug comes from the login session only. Nothing in the request can choose another restaurant (Law 18).
+// The menu code comes from the login session only. Nothing in the request can choose another restaurant (Law 18).
 
 export function registerQrRoutes(app: Hono<OwnerEnv>) {
   app.get("/qr", (c) => {
     const owner = c.get("owner");
-    const url = menuUrl(owner.slug);
+    const url = menuUrl(owner.menuCode);
     return c.html(
       page(
         "QR code",
@@ -31,13 +32,15 @@ export function registerQrRoutes(app: Hono<OwnerEnv>) {
 
   app.get("/qr.png", async (c) => {
     const owner = c.get("owner");
-    const png = await qrPng(menuUrl(owner.slug));
+    const png = await qrPng(menuUrl(owner.menuCode));
     return new Response(png, {
       headers: {
         "content-type": "image/png",
-        // The slug holds only letters, numbers, and dashes, so it is safe in the file name.
-        "content-disposition": `attachment; filename="${owner.slug}-qr.png"`,
-        "cache-control": "private, max-age=3600",
+        // The code holds only lowercase letters and numbers, so it is safe in the file name.
+        "content-disposition": `attachment; filename="menu-qr-${owner.menuCode}.png"`,
+        // Never cached: a cached copy from before the link change (issue #32) showed the old link.
+        // The image is cheap to make, so a fresh one is always sent.
+        "cache-control": "no-store",
       },
     });
   });
@@ -45,7 +48,7 @@ export function registerQrRoutes(app: Hono<OwnerEnv>) {
   app.get("/qr/print", async (c) => {
     const owner = c.get("owner");
     const profile = await tenantDb(c.env.DB, owner.restaurantId).getProfile();
-    const url = menuUrl(owner.slug);
+    const url = menuUrl(owner.menuCode);
     const name = profile?.name ?? owner.restaurantName;
     return c.html(html`<!doctype html>
 <html lang="en">

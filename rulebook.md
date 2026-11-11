@@ -66,7 +66,7 @@ Follow all the laws listed below religiously. On every task, edit, or response, 
     - Append-only tables (audit/event logs) are never updated or deleted.
     - Every schema change ships as a migration file.
 27. **No native browser popups — ever.** Never `alert()`, `confirm()`, or `prompt()`. Use `uiToast()`, `uiConfirm()`, `uiPrompt()`, which this project must build as part of its design system. Owner requirement, applies to all their apps.
-28. **The QR link is permanent.** A restaurant's slug never changes after it is created. QR codes always use the project's own domain, never `workers.dev`. Printed QR codes keep working even when a plan expires.
+28. **The QR link is permanent.** Every restaurant has a random menu code that never changes after it is created and is never given to another restaurant. QR codes contain only `https://tomatofry.com/r/<code>`. Menu links may add the restaurant's name and city after the code (`/r/<code>/<name-city>`), but only the code finds the restaurant, so a name or city change never breaks a link. QR codes always use the project's own domain, never `workers.dev`. Printed QR codes keep working even when a plan expires.
 29. **Public repo and live class safety.**
     - Class work uses fake data only. Real client data never appears on screen, in seed files, in tests, or in issues.
     - Never use `pull_request_target` in a workflow.

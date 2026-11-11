@@ -12,7 +12,9 @@ export interface OwnerSession {
   userId: string;
   restaurantId: string;
   restaurantName: string;
-  slug: string;
+  city: string | null;
+  /** The permanent code in menu links and QR codes (Law 28). */
+  menuCode: string;
   /** Effective plan: an expired Pro plan is already turned into Free here. */
   plan: Plan;
 }
@@ -22,6 +24,10 @@ const encoder = new TextEncoder();
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(text));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function menuCodeExists(db: D1Database, code: string): Promise<boolean> {
+  return (await db.prepare("SELECT 1 FROM restaurants WHERE menu_code = ?").bind(code).first()) !== null;
 }
 
 export async function slugExists(db: D1Database, slug: string): Promise<boolean> {
@@ -34,7 +40,9 @@ export interface NewOwner {
   phone: string;
   restaurantName: string;
   city: string;
+  /** No longer used in links, but the column is still NOT NULL UNIQUE, so it is filled as before. */
   slug: string;
+  menuCode: string;
 }
 
 /** Creates the user and their restaurant together. Throws if the email or slug is already taken. */
@@ -47,9 +55,9 @@ export async function createOwner(db: D1Database, owner: NewOwner): Promise<{ us
       .bind(userId, owner.email, owner.passwordHash, owner.phone, now),
     db
       .prepare(
-        "INSERT INTO restaurants (id, owner_user_id, name, slug, city, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO restaurants (id, owner_user_id, name, slug, menu_code, city, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .bind(crypto.randomUUID(), userId, owner.restaurantName, owner.slug, owner.city, owner.phone, now, now),
+      .bind(crypto.randomUUID(), userId, owner.restaurantName, owner.slug, owner.menuCode, owner.city, owner.phone, now, now),
   ]);
   return { userId };
 }
@@ -76,20 +84,21 @@ export async function createSession(db: D1Database, userId: string, token: strin
 export async function findOwnerSession(db: D1Database, token: string, now: number): Promise<OwnerSession | null> {
   const row = await db
     .prepare(
-      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.slug, r.plan, r.plan_expires_at
+      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.city, r.menu_code, r.plan, r.plan_expires_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        JOIN restaurants r ON r.owner_user_id = u.id
        WHERE s.token_hash = ? AND s.expires_at > ? AND u.role = 'owner'`,
     )
     .bind(await sha256Hex(token), now)
-    .first<{ user_id: string; restaurant_id: string; name: string; slug: string; plan: string; plan_expires_at: number | null }>();
+    .first<{ user_id: string; restaurant_id: string; name: string; city: string | null; menu_code: string; plan: string; plan_expires_at: number | null }>();
   return row
     ? {
         userId: row.user_id,
         restaurantId: row.restaurant_id,
         restaurantName: row.name,
-        slug: row.slug,
+        city: row.city,
+        menuCode: row.menu_code,
         plan: effectivePlan(row.plan, row.plan_expires_at, now),
       }
     : null;

@@ -4,7 +4,7 @@ import { type Theme, toTheme } from "./theme";
 import type { ProfileInput } from "./validation";
 
 export interface Profile extends ProfileInput {
-  slug: string;
+  menuCode: string;
   logoKey: string | null;
 }
 
@@ -59,16 +59,16 @@ export function tenantDb(db: D1Database, restaurantId: string) {
     );
 
   return {
-    /** The restaurant's own details (issue #28). The slug is read only: it never changes (Law 28). */
+    /** The restaurant's own details (issue #28). The menu code is read only: it never changes (Law 28). */
     async getProfile(): Promise<Profile | null> {
       const row = await db
-        .prepare("SELECT name, slug, city, address, phone, whatsapp, maps_url, hours, note, logo_key FROM restaurants WHERE id = ?")
+        .prepare("SELECT name, menu_code, city, address, phone, whatsapp, maps_url, hours, note, logo_key FROM restaurants WHERE id = ?")
         .bind(restaurantId)
         .first<Record<string, string | null>>();
       if (!row) return null;
       return {
         name: row.name ?? "",
-        slug: row.slug ?? "",
+        menuCode: row.menu_code ?? "",
         city: row.city ?? "",
         address: row.address ?? "",
         phone: row.phone ?? "",
@@ -80,7 +80,7 @@ export function tenantDb(db: D1Database, restaurantId: string) {
       };
     },
 
-    /** Saves the checked details. Empty optional fields are stored as NULL. The slug is never written. */
+    /** Saves the checked details. Empty optional fields are stored as NULL. The menu code is never written. */
     async updateProfile(p: ProfileInput): Promise<void> {
       const orNull = (value: string) => (value ? value : null);
       await db

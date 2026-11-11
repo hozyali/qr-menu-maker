@@ -1,6 +1,7 @@
 import type { Context, Hono } from "hono";
 import { html } from "hono/html";
 import { page } from "../shared/layout";
+import { menuLink, menuPath } from "../shared/menu-link";
 import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { type Profile, tenantDb } from "../shared/tenant-db";
 import { type FieldErrors, type ProfileInput, readText, validateProfile } from "../shared/validation";
@@ -65,7 +66,7 @@ function profilePage(c: OwnerContext, profile: Profile, values: ProfileInput, er
   return page(
     "Profile",
     html`<h1>Restaurant profile</h1>
-<p class="lead">These details show on your menu at <a href="${siteOrigin(c.req.url)}/r/${profile.slug}" target="_blank" rel="noopener">tomatofry.com/r/${profile.slug}</a>.</p>
+<p class="lead">These details show on your menu at <a href="${siteOrigin(c.req.url)}${menuPath(profile.menuCode, profile.name, profile.city)}" target="_blank" rel="noopener">${menuLink(profile.menuCode, profile.name, profile.city).replace("https://", "")}</a>. The name part of the link follows your name and city. Your QR code never changes.</p>
 <form class="card form" method="post" action="/profile" novalidate>
 ${Object.keys(errors).length > 0 ? html`<p class="error" role="alert">Please fix the fields below.</p>` : ""}
 ${notice ? html`<p class="notice" role="status">${notice}</p>` : ""}

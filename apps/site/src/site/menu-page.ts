@@ -32,7 +32,7 @@ function safeHttpsUrl(value: string): string | null {
   }
 }
 
-function shell(restaurant: PublicRestaurant, themeHref: string, bodyClass: string, body: unknown) {
+function shell(restaurant: PublicRestaurant, themeHref: string, bodyClass: string, body: unknown, canonical: string) {
   return html`<!doctype html>
 <html lang="en">
 <head>
@@ -40,6 +40,7 @@ function shell(restaurant: PublicRestaurant, themeHref: string, bodyClass: strin
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${restaurant.name} · Menu</title>
 <meta name="description" content="Menu of ${restaurant.name}${restaurant.city ? `, ${restaurant.city}` : ""}">
+<link rel="canonical" href="${canonical}">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/menu.css">
 <link rel="stylesheet" href="${themeHref}">
@@ -64,7 +65,7 @@ ${item.description ? html`<p class="desc">${item.description}</p>` : ""}
 </li>`;
 }
 
-export function menuPage(restaurant: PublicRestaurant, categories: PublicCategory[], themeHref: string) {
+export function menuPage(restaurant: PublicRestaurant, categories: PublicCategory[], themeHref: string, canonical: string) {
   const tel = restaurant.phone ? telHref(restaurant.phone) : null;
   const whatsapp = restaurant.whatsapp ? whatsappHref(restaurant.whatsapp, restaurant.country) : null;
   const map = restaurant.mapsUrl ? safeHttpsUrl(restaurant.mapsUrl) : null;
@@ -105,15 +106,17 @@ ${restaurant.note ? html`<p class="note">${restaurant.note}</p>` : ""}
 </main>`
     : html`<main class="wrap"><p class="empty">The menu is being prepared. Please check back soon.</p></main>`}
 ${restaurant.plan === "free" ? html`<footer class="powered"><a href="https://tomatofry.com/">Powered by TomatoFry</a></footer>` : ""}`,
+    canonical,
   );
 }
 
-export function unavailablePage(restaurant: PublicRestaurant, themeHref: string) {
+export function unavailablePage(restaurant: PublicRestaurant, themeHref: string, canonical: string) {
   return shell(
     restaurant,
     themeHref,
     `menu ${restaurant.theme.mode}`,
     html`<main class="wrap closed"><h1>${restaurant.name}</h1><p class="empty">This menu is currently unavailable.</p></main>`,
+    canonical,
   );
 }
 
