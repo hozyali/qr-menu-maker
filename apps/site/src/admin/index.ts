@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { csrf } from "hono/csrf";
 import { html } from "hono/html";
-import { type AdminSession, findAdminLogin, findAdminSession } from "../shared/accounts-db";
+import { findAdminLogin, findAdminSession } from "../shared/accounts-db";
 import { checkLogin, endSession, sessionToken, startSession, tooManyRequests } from "../shared/auth";
 import { page } from "../shared/layout";
+import { type AdminEnv, registerRestaurantRoutes } from "./restaurants";
 
 // Master admin area on admin.tomatofry.com (issue #34). It never serves the static site files.
 // There is no signup here: admin accounts are made only with scripts/create-admin.mjs (Law 19).
-type AdminEnv = { Bindings: Env; Variables: { admin: AdminSession } };
 export const adminApp = new Hono<AdminEnv>();
 
 // Admin sessions are shorter than owner sessions: 12 hours.
@@ -60,18 +60,5 @@ adminApp.use("*", async (c, next) => {
   await next();
 });
 
-adminApp.get("/", (c) =>
-  c.html(
-    page(
-      "Admin",
-      html`<header class="top">
-<h1>TomatoFry admin</h1>
-<form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
-</header>
-<p class="lead">Logged in as ${c.get("admin").email}.</p>
-<div class="card empty"><h2>Restaurants</h2><p>The restaurant list, plans, and password links come next.</p></div>`,
-      "",
-      "wide",
-    ),
-  ),
-);
+// The restaurant list, detail pages, plan changes, and suspension (issue #36).
+registerRestaurantRoutes(adminApp);

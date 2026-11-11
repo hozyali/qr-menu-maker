@@ -63,3 +63,38 @@ export async function codeOf(restaurantId: string): Promise<string> {
   const row = await db.prepare("SELECT menu_code FROM restaurants WHERE id = ?").bind(restaurantId).first<{ menu_code: string }>();
   return row?.menu_code ?? "";
 }
+
+// Admin area helpers (issues #34 and #36). Test values only.
+export const ADMIN = "https://admin.tomatofry.com";
+
+export function adminPost(path: string, form: Record<string, string>, cookie?: string, origin = ADMIN) {
+  const headers = new Headers({
+    "content-type": "application/x-www-form-urlencoded",
+    origin,
+    "cf-connecting-ip": nextIp(),
+  });
+  if (cookie) headers.set("cookie", cookie);
+  return handleRequest(new Request(`${ADMIN}${path}`, { method: "POST", headers, body: new URLSearchParams(form) }), env);
+}
+
+export function adminGet(path: string, cookie?: string) {
+  const headers = new Headers();
+  if (cookie) headers.set("cookie", cookie);
+  return handleRequest(new Request(`${ADMIN}${path}`, { headers }), env);
+}
+
+let adminCounter = 0;
+/** Creates an admin account and returns its email and session cookie. */
+export async function newAdminSession() {
+  adminCounter++;
+  const email = `helper-admin${adminCounter}@example.test`;
+  const password = "admin helper password 1";
+  const { createAdmin } = await import("../src/shared/admin-account");
+  const { hashPassword } = await import("../src/shared/password");
+  await createAdmin(db, { email, passwordHash: await hashPassword(password) });
+  const response = await adminPost("/login", { email, password });
+  const cookie = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+  if (!cookie) throw new Error("Test admin login failed");
+  const user = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
+  return { email, cookie, userId: user?.id ?? "" };
+}

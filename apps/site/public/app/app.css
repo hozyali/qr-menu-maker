@@ -124,3 +124,22 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
   .print-page { background: #ffffff; }
   .table-card { border: 0; margin: 0 auto; max-width: none; }
 }
+
+/* Master admin */
+.table-wrap { padding: 0; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.table th { text-align: left; font-size: 13px; color: var(--muted); font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--tone); }
+.table td { padding: 12px 16px; border-top: 1px solid var(--tone); vertical-align: top; }
+.table td .meta { display: block; font-size: 14px; }
+.table .wrap { overflow-wrap: anywhere; }
+.badge { display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.badge.ok { background: #dcefe3; color: #123a26; }
+.badge.warn { background: #f8e1dd; color: #6e1a0d; }
+.pager { margin-top: var(--space-2); }
+.admin-section { margin-top: var(--space-2); }
+.admin-section h2, .card h2 { margin: 0 0 var(--space-1); font-size: 20px; }
+.details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.details dt { color: var(--muted); }
+.details dd { margin: 0; overflow-wrap: anywhere; }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.history li { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--tone); }
