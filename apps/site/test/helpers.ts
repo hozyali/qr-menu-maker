@@ -57,3 +57,9 @@ export async function newOwner(name = "Test Kitchen") {
   if (!cookie || !row) throw new Error("Test signup failed");
   return { cookie, restaurantId: row.id };
 }
+
+/** The permanent code that menu links and QR codes use. */
+export async function codeOf(restaurantId: string): Promise<string> {
+  const row = await db.prepare("SELECT menu_code FROM restaurants WHERE id = ?").bind(restaurantId).first<{ menu_code: string }>();
+  return row?.menu_code ?? "";
+}

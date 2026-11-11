@@ -11,8 +11,10 @@ import {
   findOwnerSession,
   isLoginLocked,
   recordLoginFailure,
+  menuCodeExists,
   slugExists,
 } from "../shared/accounts-db";
+import { newMenuCode } from "../shared/menu-link";
 import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
@@ -141,7 +143,14 @@ ownerApp.post("/signup", async (c) => {
     return c.html(signupPage(c.env.TURNSTILE_SITE_KEY, shown, {}, "Please complete the check and try again."), 400);
   }
 
-  // The link is permanent (Law 28). A taken link gets a number on the end.
+  // The menu code is what links and QR codes use, and it never changes (Law 28).
+  // A clash is very unlikely (31^6 codes), but a taken code is replaced before saving.
+  let menuCode = newMenuCode();
+  for (let tries = 0; (await menuCodeExists(c.env.DB, menuCode)) && tries < 5; tries++) {
+    menuCode = newMenuCode();
+  }
+
+  // The old name-based slug column is still NOT NULL UNIQUE, so it is filled as before. Links no longer use it.
   const base = `${slugify(values.restaurant)}-${slugify(values.city)}`;
   let slug = base;
   for (let n = 2; (await slugExists(c.env.DB, slug)) && n < 100; n++) {
@@ -157,6 +166,7 @@ ownerApp.post("/signup", async (c) => {
       restaurantName: values.restaurant,
       city: values.city,
       slug,
+      menuCode,
     }));
   } catch {
     // The same message for a taken email and any other failure, so this form cannot be used

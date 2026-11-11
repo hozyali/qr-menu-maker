@@ -1,13 +1,8 @@
 import { encode } from "uqr";
 
-// Menu QR codes (issue #30).
-// A printed QR code must work for as long as the restaurant exists (Law 28), so it always uses our
-// own domain and the permanent slug, never the request's host or a workers.dev address.
-export const MENU_ORIGIN = "https://tomatofry.com";
-
-export function menuUrl(slug: string): string {
-  return `${MENU_ORIGIN}/r/${slug}`;
-}
+// Menu QR codes (issues #30 and #32).
+// A printed QR code must work for as long as the restaurant exists (Law 28). The link it holds comes
+// from menuUrl in menu-link.ts: our own domain and the permanent code, never the request's host.
 
 // Level Q recovers about 25% damage, for cards that get stained or worn on tables.
 // A border of 4 modules is the quiet zone that scanners need around the code.

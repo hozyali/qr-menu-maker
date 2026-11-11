@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `2026-11-11T13:41Z` The QR code download is no longer cached, so a browser never keeps an image with an old link.
 - `2026-11-10T15:32Z` Security: development tools now use `minimatch` 11.0.5, which fixes a moderate denial of service advisory (GHSA-g3hv-75wg-m249). The deployed Worker never used this package.
 - `2026-11-06T14:34Z` The migration safety check no longer blocks `ON DELETE CASCADE` and `BEFORE DELETE`.
 - `2026-11-06T14:14Z` A failed AI review now prints its final error message.
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `2026-11-11T13:41Z` Menu links now use a permanent random code: `tomatofry.com/r/<code>/<name-city>`. Only the code finds the restaurant, so name and city changes never break a link, and restaurants with the same name no longer clash. QR codes contain only `tomatofry.com/r/<code>`. Old name-only links stop working (demo data only). Rulebook Law 28 updated to match. Needs migration `0003_menu_code.sql`.
 - `2026-11-06T13:26Z` Rulebook updated for the demo setup: no staging, one production database, deploy on merge, and owner-approved migrations.
 - `2026-11-05T14:45Z` Law 8 now allows the static landing page to deploy through Workers Builds on merge.
 - `2026-11-05T14:15Z` Law 5 now requires plain, simple English for everything written to GitHub or the repository.

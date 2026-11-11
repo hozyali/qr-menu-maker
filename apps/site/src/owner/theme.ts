@@ -1,6 +1,7 @@
 import type { Context, Hono } from "hono";
 import { html } from "hono/html";
 import { page } from "../shared/layout";
+import { menuPath } from "../shared/menu-link";
 import { planAllows } from "../shared/plans";
 import { tenantDb } from "../shared/tenant-db";
 import { isHexColor, type Theme, themeColors } from "../shared/theme";
@@ -40,7 +41,7 @@ ${choice("photos", "large", "Large", theme.photoSize)}
 ${choice("photos", "small", "Small", theme.photoSize)}
 </fieldset>
 <button class="button" type="submit">Save theme</button>
-<a class="button secondary" href="${siteOrigin(c.req.url)}/r/${owner.slug}" target="_blank" rel="noopener">Open my menu</a>
+<a class="button secondary" href="${siteOrigin(c.req.url)}${menuPath(owner.menuCode, owner.restaurantName, owner.city)}" target="_blank" rel="noopener">Open my menu</a>
 <a class="button secondary" href="/">Back to dashboard</a>
 </form>`,
   );

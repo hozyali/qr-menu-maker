@@ -21,7 +21,7 @@ function uploadLogo(bytes: Uint8Array, name: string, type: string, cookie: strin
 
 async function restaurant(id: string) {
   return db
-    .prepare("SELECT name, slug, city, address, phone, whatsapp, maps_url, hours, note, logo_key FROM restaurants WHERE id = ?")
+    .prepare("SELECT name, menu_code, city, address, phone, whatsapp, maps_url, hours, note, logo_key FROM restaurants WHERE id = ?")
     .bind(id)
     .first<Record<string, string | null>>();
 }
@@ -67,7 +67,7 @@ describe("restaurant profile", () => {
     const row = await restaurant(owner.restaurantId);
     expect(row).toMatchObject({ name: "Profile Karahi House", address: "12 Food Street, Gulberg", whatsapp: "0321 7654321", note: "Prices include tax." });
 
-    const menu = await (await site(`/r/${row?.slug}`)).text();
+    const menu = await (await site(`/r/${row?.menu_code}`)).text();
     expect(menu).toContain("Profile Karahi House");
     expect(menu).toContain("12 Food Street, Gulberg");
     expect(menu).toContain("Daily 12 pm to 1 am");
@@ -76,12 +76,12 @@ describe("restaurant profile", () => {
     expect(menu).toContain('href="https://maps.app.goo.gl/AbCdEf123"');
   });
 
-  it("never changes the menu link when the name or city changes", async () => {
-    const owner = await newOwner("Profile Slug");
-    const before = (await restaurant(owner.restaurantId))?.slug;
+  it("never changes the menu code when the name or city changes", async () => {
+    const owner = await newOwner("Profile Code");
+    const before = (await restaurant(owner.restaurantId))?.menu_code;
     await post("/profile", { ...FULL_PROFILE, name: "A New Name", city: "Karachi" }, owner.cookie);
     const after = await restaurant(owner.restaurantId);
-    expect(after?.slug).toBe(before);
+    expect(after?.menu_code).toBe(before);
     expect(after?.name).toBe("A New Name");
   });
 
@@ -91,7 +91,7 @@ describe("restaurant profile", () => {
     await post("/profile", { ...FULL_PROFILE, whatsapp: "", maps_url: "", hours: "", note: "", address: "" }, owner.cookie);
     const row = await restaurant(owner.restaurantId);
     expect(row).toMatchObject({ whatsapp: null, maps_url: null, hours: null, note: null, address: null });
-    const menu = await (await site(`/r/${row?.slug}`)).text();
+    const menu = await (await site(`/r/${row?.menu_code}`)).text();
     expect(menu).not.toContain("wa.me");
   });
 
@@ -146,7 +146,7 @@ describe("restaurant logo", () => {
     const row = await restaurant(owner.restaurantId);
     expect(row?.logo_key).toMatch(new RegExp(`^restaurants/${owner.restaurantId}/[0-9a-f-]{36}\\.webp$`));
     expect(await env.MEDIA.head(row?.logo_key ?? "")).not.toBeNull();
-    expect(await (await site(`/r/${row?.slug}`)).text()).toContain(`src="/media/${row?.logo_key}"`);
+    expect(await (await site(`/r/${row?.menu_code}`)).text()).toContain(`src="/media/${row?.logo_key}"`);
   });
 
   it("refuses an SVG, even with an image name", async () => {

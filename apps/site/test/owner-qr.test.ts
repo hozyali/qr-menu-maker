@@ -1,14 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "uqr";
-import { menuUrl } from "../src/shared/qr";
-import { db, get, newOwner, passTurnstile, post } from "./helpers";
+import { menuUrl } from "../src/shared/menu-link";
+import { codeOf, db, get, newOwner, passTurnstile, post } from "./helpers";
 
 beforeEach(() => passTurnstile());
 afterEach(() => vi.restoreAllMocks());
 
-async function slugOf(restaurantId: string) {
-  return (await db.prepare("SELECT slug FROM restaurants WHERE id = ?").bind(restaurantId).first<{ slug: string }>())?.slug ?? "";
-}
 
 interface DecodedPng {
   width: number;
@@ -62,17 +59,19 @@ describe("QR code", () => {
     }
   });
 
-  it("always points to the restaurant's permanent link on tomatofry.com", () => {
-    expect(menuUrl("bismillah-karahi-lahore")).toBe("https://tomatofry.com/r/bismillah-karahi-lahore");
+  it("always points to the restaurant's permanent code on tomatofry.com", () => {
+    expect(menuUrl("k7x2p9")).toBe("https://tomatofry.com/r/k7x2p9");
   });
 
   it("downloads a PNG that encodes exactly the menu link", async () => {
     const owner = await newOwner("QR Png");
-    const slug = await slugOf(owner.restaurantId);
+    const code = await codeOf(owner.restaurantId);
     const response = await get("/qr.png", owner.cookie);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
-    expect(response.headers.get("content-disposition")).toBe(`attachment; filename="${slug}-qr.png"`);
+    expect(response.headers.get("content-disposition")).toBe(`attachment; filename="menu-qr-${code}.png"`);
+    // A cached old image could carry an old link, so the download is never cached.
+    expect(response.headers.get("cache-control")).toBe("no-store");
 
     const png = await decodePng(new Uint8Array(await response.arrayBuffer()));
     expect(png.colorType).toBe(0);
@@ -81,7 +80,7 @@ describe("QR code", () => {
     expect(png.width).toBeGreaterThanOrEqual(1000);
 
     // Rebuild the expected QR from the link and compare the centre of every module.
-    const expected = encode(`https://tomatofry.com/r/${slug}`, { ecc: "Q", border: 4 }).data;
+    const expected = encode(`https://tomatofry.com/r/${code}`, { ecc: "Q", border: 4 }).data;
     const scale = png.width / expected.length;
     expect(Number.isInteger(scale)).toBe(true);
     expected.forEach((row, y) =>
@@ -92,23 +91,23 @@ describe("QR code", () => {
     );
   });
 
-  it("ignores any slug or id in the request", async () => {
+  it("ignores any code or id in the request", async () => {
     const a = await newOwner("QR Owner A");
     const b = await newOwner("QR Owner B");
-    const bSlug = await slugOf(b.restaurantId);
-    const aSlug = await slugOf(a.restaurantId);
-    const response = await get(`/qr.png?slug=${bSlug}&id=${b.restaurantId}`, a.cookie);
-    expect(response.headers.get("content-disposition")).toContain(aSlug);
-    const page = await (await get(`/qr?slug=${bSlug}`, a.cookie)).text();
-    expect(page).toContain(`tomatofry.com/r/${aSlug}`);
-    expect(page).not.toContain(bSlug);
+    const bCode = await codeOf(b.restaurantId);
+    const aCode = await codeOf(a.restaurantId);
+    const response = await get(`/qr.png?code=${bCode}&id=${b.restaurantId}`, a.cookie);
+    expect(response.headers.get("content-disposition")).toContain(aCode);
+    const page = await (await get(`/qr?code=${bCode}`, a.cookie)).text();
+    expect(page).toContain(`tomatofry.com/r/${aCode}`);
+    expect(page).not.toContain(bCode);
   });
 
   it("shows the QR page with the link, a download, and the print card", async () => {
     const owner = await newOwner("QR Page");
-    const slug = await slugOf(owner.restaurantId);
+    const code = await codeOf(owner.restaurantId);
     const body = await (await get("/qr", owner.cookie)).text();
-    expect(body).toContain(`https://tomatofry.com/r/${slug}`);
+    expect(body).toContain(`https://tomatofry.com/r/${code}`);
     expect(body).toContain('href="/qr.png"');
     expect(body).toContain('href="/qr/print"');
     expect(body).toMatch(/<svg[^>]*role="img"/);
@@ -116,10 +115,10 @@ describe("QR code", () => {
 
   it("prints a table card with the name, logo, QR, and scan text", async () => {
     const owner = await newOwner("QR Print <b>");
-    const slug = await slugOf(owner.restaurantId);
+    const code = await codeOf(owner.restaurantId);
     const body = await (await get("/qr/print", owner.cookie)).text();
     expect(body).toContain("Scan for menu");
-    expect(body).toContain(`tomatofry.com/r/${slug}`);
+    expect(body).toContain(`tomatofry.com/r/${code}`);
     expect(body).toContain("QR Print &lt;b&gt;");
     expect(body).toMatch(/<svg[^>]*role="img"/);
   });

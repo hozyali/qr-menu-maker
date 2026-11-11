@@ -1,4 +1,4 @@
-// Public menu queries for tomatofry.com/r/<slug> (issue #24).
+// Public menu queries for tomatofry.com/r/<code> (issues #24 and #32).
 // Anyone can open this page, so these are separate, reviewed queries (Laws 17 and 18).
 // They return only the fixed list of public fields: never the owner, email, account, or ids
 // beyond what the page needs to link categories.
@@ -44,8 +44,8 @@ export type PublicMenu =
 export const PUBLIC_MENU_SQL = {
   restaurant: `SELECT id, name, logo_key, city, address, phone, whatsapp, maps_url, hours, note, country, currency,
                       plan, plan_expires_at, status, theme_color, theme_mode, photo_size
-               FROM restaurants WHERE slug = ?`,
-  theme: "SELECT theme_color, theme_mode, photo_size FROM restaurants WHERE slug = ?",
+               FROM restaurants WHERE menu_code = ?`,
+  theme: "SELECT theme_color, theme_mode, photo_size FROM restaurants WHERE menu_code = ?",
   categories: "SELECT id, name FROM categories WHERE restaurant_id = ? ORDER BY sort_order, id",
   items: `SELECT id, category_id, name, description, is_available, photo_key FROM items
           WHERE restaurant_id = ? ORDER BY category_id, sort_order, id`,
@@ -55,23 +55,23 @@ export const PUBLIC_MENU_SQL = {
 const text = (value: unknown) => (value === null || value === undefined ? null : String(value));
 
 /** Finds a restaurant by its permanent link. Returns null if there is no such restaurant. */
-async function findRestaurant(db: D1Database, slug: string) {
+async function findRestaurant(db: D1Database, code: string) {
   return db
     .prepare(PUBLIC_MENU_SQL.restaurant)
-    .bind(slug)
+    .bind(code)
     .first<Record<string, unknown>>();
 }
 
-export async function findPublicTheme(db: D1Database, slug: string): Promise<Theme | null> {
+export async function findPublicTheme(db: D1Database, code: string): Promise<Theme | null> {
   const row = await db
     .prepare(PUBLIC_MENU_SQL.theme)
-    .bind(slug)
+    .bind(code)
     .first<Record<string, unknown>>();
   return row ? toTheme(row.theme_color, row.theme_mode, row.photo_size) : null;
 }
 
-export async function findPublicMenu(db: D1Database, slug: string, now: number): Promise<PublicMenu | null> {
-  const row = await findRestaurant(db, slug);
+export async function findPublicMenu(db: D1Database, code: string, now: number): Promise<PublicMenu | null> {
+  const row = await findRestaurant(db, code);
   if (!row) return null;
 
   const restaurant: PublicRestaurant = {
