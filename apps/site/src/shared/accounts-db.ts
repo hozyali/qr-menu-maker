@@ -73,6 +73,32 @@ export async function findOwnerLogin(db: D1Database, email: string): Promise<Own
   return row ? { userId: row.id, passwordHash: row.password_hash } : null;
 }
 
+/** Only accounts with the admin role can log in to the admin area (issue #34). */
+export async function findAdminLogin(db: D1Database, email: string): Promise<OwnerLogin | null> {
+  const row = await db
+    .prepare("SELECT id, password_hash FROM users WHERE email = ? AND role = 'admin'")
+    .bind(email)
+    .first<{ id: string; password_hash: string }>();
+  return row ? { userId: row.id, passwordHash: row.password_hash } : null;
+}
+
+export interface AdminSession {
+  userId: string;
+  email: string;
+}
+
+/** The role is read from the database on every request, so a changed role takes effect at once (Law 18). */
+export async function findAdminSession(db: D1Database, token: string, now: number): Promise<AdminSession | null> {
+  const row = await db
+    .prepare(
+      `SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token_hash = ? AND s.expires_at > ? AND u.role = 'admin'`,
+    )
+    .bind(await sha256Hex(token), now)
+    .first<{ id: string; email: string }>();
+  return row ? { userId: row.id, email: row.email } : null;
+}
+
 export async function createSession(db: D1Database, userId: string, token: string, expiresAt: number): Promise<void> {
   await db
     .prepare("INSERT INTO sessions (id, token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")

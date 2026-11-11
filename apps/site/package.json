@@ -8,7 +8,8 @@
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
     "hono": "4.13.16",
