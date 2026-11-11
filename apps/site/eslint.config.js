@@ -9,7 +9,8 @@ export default tseslint.config(
     // accounts-db.ts holds the reviewed account queries that run before a restaurant is known.
     // public-menu-db.ts holds the reviewed public menu queries, which return public fields only (Law 17).
     // admin-account.ts holds the reviewed query that creates an admin account (issue #34).
-    ignores: ["src/shared/tenant-db.ts", "src/shared/accounts-db.ts", "src/shared/public-menu-db.ts", "src/shared/admin-account.ts", "src/**/*.test.ts"],
+    // admin-db.ts holds the reviewed master admin queries across restaurants (issue #36).
+    ignores: ["src/shared/tenant-db.ts", "src/shared/accounts-db.ts", "src/shared/public-menu-db.ts", "src/shared/admin-account.ts", "src/shared/admin-db.ts", "src/**/*.test.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
