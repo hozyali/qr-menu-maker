@@ -4,6 +4,7 @@ import { page } from "../shared/layout";
 import { menuLink, menuPath } from "../shared/menu-link";
 import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { type Profile, tenantDb } from "../shared/tenant-db";
+import { planAllows } from "../shared/plans";
 import { type FieldErrors, type ProfileInput, readText, validateProfile } from "../shared/validation";
 import { type OwnerEnv, siteOrigin } from "./menu";
 
@@ -74,7 +75,7 @@ ${FIELDS.map((spec) => field(spec, values[spec.name], errors))}
 <button class="button" type="submit">Save profile</button>
 <a class="button secondary" href="/">Back to dashboard</a>
 </form>
-${logoSection(profile, logoError)}`,
+${planAllows(c.get("owner").entitlements, "logo") ? logoSection(profile, logoError) : ""}`,
   );
 }
 
@@ -113,6 +114,10 @@ export function registerProfileRoutes(app: Hono<OwnerEnv>) {
   });
 
   app.post("/profile/logo", async (c) => {
+    // Checked on the server, so a switched-off feature cannot be used from the browser (issue #38).
+    if (!planAllows(c.get("owner").entitlements, "logo")) {
+      return c.html(page("Logo", html`<h1>A logo is not part of your plan</h1><p class="lead"><a href="/profile">Back to your profile</a></p>`), 403);
+    }
     const db = profileDb(c);
     const profile = await db.getProfile();
     if (!profile) return c.redirect("/login", 303);

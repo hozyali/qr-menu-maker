@@ -4,6 +4,7 @@ import { html } from "hono/html";
 import { findAdminLogin, findAdminSession } from "../shared/accounts-db";
 import { checkLogin, endSession, sessionToken, startSession, tooManyRequests } from "../shared/auth";
 import { page } from "../shared/layout";
+import { registerPlanRoutes } from "./plans";
 import { type AdminEnv, registerRestaurantRoutes } from "./restaurants";
 
 // Master admin area on admin.tomatofry.com (issue #34). It never serves the static site files.
@@ -62,3 +63,5 @@ adminApp.use("*", async (c, next) => {
 
 // The restaurant list, detail pages, plan changes, and suspension (issue #36).
 registerRestaurantRoutes(adminApp);
+// The plan editor (issue #38).
+registerPlanRoutes(adminApp);

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `2026-11-11T14:42Z` Plans are now stored in the database and edited by the admin at `admin.tomatofry.com/plans`: name, free or paid, monthly and yearly prices, feature switches (theme editor, removing Powered by, dish photos, logo), and the dish limit. Every plan change is in the audit log. The public menu and owner area now follow the plan's switches. Needs migration `0005_plans.sql`.
 - `2026-11-11T14:10Z` Master admin pages: a restaurant list with keyset paging, restaurant details, Free or Pro plan changes with a Pakistan-time end date, and suspend and reactivate with a confirmation page. Every change writes to the append-only audit log in the same transaction. Needs migration `0004_audit_log_restaurant_index.sql`.
 - `2026-11-11T13:56Z` Admin login and logout on `admin.tomatofry.com`, with the admin role checked on the server on every request, 12-hour sessions, the login lockout, and the rate limit. Owner and admin accounts cannot cross into each other's area. Adds `scripts/create-admin.mjs` to create admin accounts, since signup never does. Login and session code is now shared by both areas.
 - `2026-11-11T13:17Z` Menu QR code page with a PNG download and a printable table card. The code always points to `https://tomatofry.com/r/<slug>`, so printed cards keep working. Adds the `uqr` library for the QR matrix.
