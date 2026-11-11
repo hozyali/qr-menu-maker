@@ -16,6 +16,7 @@ import {
 import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
+import { registerProfileRoutes } from "./profile";
 import { registerThemeRoutes } from "./theme";
 import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
@@ -211,3 +212,5 @@ ownerApp.use("*", async (c, next) => {
 registerMenuRoutes(ownerApp);
 // The menu theme editor.
 registerThemeRoutes(ownerApp);
+// The restaurant profile and logo.
+registerProfileRoutes(ownerApp);

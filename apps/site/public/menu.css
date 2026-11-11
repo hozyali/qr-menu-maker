@@ -13,6 +13,7 @@ a { color: inherit; text-underline-offset: 3px; }
 .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px; }
 
 .hero { background: var(--brand); color: var(--on-brand); padding: 28px 0 22px; }
+.logo { display: block; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: var(--surface); margin-bottom: 12px; border: 2px solid var(--on-brand); }
 .hero h1 { margin: 0 0 4px; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
 .hero p { margin: 0 0 4px; opacity: 0.92; }
 .contact { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }

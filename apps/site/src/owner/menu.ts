@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 import { html } from "hono/html";
 import type { OwnerSession } from "../shared/accounts-db";
 import { page } from "../shared/layout";
-import { deletePhotos, detectImage, MAX_PHOTO_BYTES, newPhotoKey } from "../shared/media";
+import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { formatMoney } from "../shared/money";
 import { planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
@@ -184,6 +184,7 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
         html`<header class="top">
 <h1>${owner.restaurantName}</h1>
 <div class="actions">
+<a class="button secondary small" href="/profile">Profile</a>
 <a class="button secondary small" href="/theme">Menu theme</a>
 <form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
 </div>
@@ -365,21 +366,14 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     // Ownership is checked before anything is stored (Law 18).
     const item = await db.getItem(c.req.param("id"));
     if (!item) return notFound(c);
-    const file = (await c.req.formData()).get("photo");
-    const back = html`<p><a href="/items/${item.id}/edit">Back to ${item.name}</a></p>`;
-    if (!(file instanceof File) || file.size === 0) {
-      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">Choose a photo first.</p>${back}`), 400);
+    // The checks are shared with the logo upload, so both follow the same rules (Law 19).
+    const upload = await checkImageUpload((await c.req.formData()).get("photo"));
+    if (!upload.ok) {
+      const back = html`<p><a href="/items/${item.id}/edit">Back to ${item.name}</a></p>`;
+      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">${upload.error}</p>${back}`), 400);
     }
-    if (file.size > MAX_PHOTO_BYTES) {
-      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">The photo is larger than 1 MB. Try a smaller one.</p>${back}`), 400);
-    }
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const type = detectImage(bytes);
-    if (!type) {
-      return c.html(page("Photo", html`<h1>Photo not added</h1><p class="error" role="alert">Use a JPG, PNG, or WEBP photo.</p>${back}`), 400);
-    }
-    const key = newPhotoKey(owner.restaurantId, type);
-    await c.env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type.contentType } });
+    const key = newPhotoKey(owner.restaurantId, upload.type);
+    await c.env.MEDIA.put(key, upload.bytes, { httpMetadata: { contentType: upload.type.contentType } });
     if (!(await db.setItemPhoto(item.id, key))) {
       // The dish was deleted in the meantime, so the new file is not needed.
       await deletePhotos(c.env.MEDIA, [key]);

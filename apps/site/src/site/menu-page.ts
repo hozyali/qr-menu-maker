@@ -77,6 +77,7 @@ export function menuPage(restaurant: PublicRestaurant, categories: PublicCategor
     bodyClass,
     html`<header class="hero">
 <div class="wrap">
+${restaurant.logoKey ? html`<img class="logo" src="/media/${restaurant.logoKey}" alt="" width="72" height="72">` : ""}
 <h1>${restaurant.name}</h1>
 ${where ? html`<p class="where">${where}</p>` : ""}
 ${restaurant.hours ? html`<p class="hours">${restaurant.hours}</p>` : ""}

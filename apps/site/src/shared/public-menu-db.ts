@@ -22,6 +22,7 @@ export interface PublicCategory {
 
 export interface PublicRestaurant {
   name: string;
+  logoKey: string | null;
   city: string | null;
   address: string | null;
   phone: string | null;
@@ -41,7 +42,7 @@ export type PublicMenu =
 
 // The SQL is listed here so a test can prove each query uses an index (Law 26).
 export const PUBLIC_MENU_SQL = {
-  restaurant: `SELECT id, name, city, address, phone, whatsapp, maps_url, hours, note, country, currency,
+  restaurant: `SELECT id, name, logo_key, city, address, phone, whatsapp, maps_url, hours, note, country, currency,
                       plan, plan_expires_at, status, theme_color, theme_mode, photo_size
                FROM restaurants WHERE slug = ?`,
   theme: "SELECT theme_color, theme_mode, photo_size FROM restaurants WHERE slug = ?",
@@ -75,6 +76,7 @@ export async function findPublicMenu(db: D1Database, slug: string, now: number):
 
   const restaurant: PublicRestaurant = {
     name: String(row.name),
+    logoKey: text(row.logo_key),
     city: text(row.city),
     address: text(row.address),
     phone: text(row.phone),
