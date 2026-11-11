@@ -92,7 +92,6 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
 }
 
 /* Menu theme editor */
-.top .actions { flex-wrap: nowrap; }
 .notice { background: #dcefe3; color: #123a26; padding: 12px; border-radius: var(--radius); margin: 0; font-weight: 600; }
 .warning { background: #fbefd0; color: #4a3500; padding: 12px; border-radius: var(--radius); margin: 0; font-size: 15px; }
 .field input[type="color"] { height: 52px; padding: 4px; cursor: pointer; }
@@ -104,3 +103,24 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
 
 /* Restaurant profile */
 .logo-preview { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; background: var(--tone); }
+
+/* QR code page and table card */
+.top .actions { flex-wrap: wrap; justify-content: flex-end; }
+.qr-preview { background: #ffffff; border-radius: var(--radius); padding: var(--space-1); max-width: 280px; margin: 0 auto; width: 100%; }
+.qr { display: block; width: 100%; height: auto; }
+.qr-card .meta { text-align: center; }
+.print-page { background: var(--bg); }
+.print-tools { max-width: 420px; margin: var(--space-3) auto 0; padding: 0 var(--space-2); display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+.print-tools .hint { width: 100%; font-size: 14px; color: var(--muted); margin: 0; }
+.table-card { width: 105mm; max-width: calc(100% - 32px); margin: var(--space-3) auto; padding: 10mm 8mm; background: #ffffff; color: #000000; border: 1px solid #8f8b84; border-radius: 12px; text-align: center; display: grid; gap: 4mm; justify-items: center; }
+.table-card h1 { font-size: 26px; margin: 0; overflow-wrap: anywhere; }
+.table-card-logo { width: 22mm; height: 22mm; border-radius: 50%; object-fit: cover; }
+.table-card-cta { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: 0.02em; }
+.table-card .qr { width: 70mm; max-width: 100%; }
+.table-card-link { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+@media print {
+  @page { size: A6 portrait; margin: 0; }
+  .print-tools { display: none; }
+  .print-page { background: #ffffff; }
+  .table-card { border: 0; margin: 0 auto; max-width: none; }
+}

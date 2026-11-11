@@ -184,6 +184,7 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
         html`<header class="top">
 <h1>${owner.restaurantName}</h1>
 <div class="actions">
+<a class="button small" href="/qr">QR code</a>
 <a class="button secondary small" href="/profile">Profile</a>
 <a class="button secondary small" href="/theme">Menu theme</a>
 <form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
