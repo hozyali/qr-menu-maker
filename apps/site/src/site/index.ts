@@ -19,7 +19,7 @@ siteApp.get("/media/*", (c) => serveMedia(c.env.MEDIA, c.req.path));
 // It is registered before the name route. A name part never contains a dot, so it cannot clash.
 siteApp.get("/r/:code/theme.css", async (c) => {
   const code = c.req.param("code");
-  const theme = MENU_CODE.test(code) ? await findPublicTheme(c.env.DB, code) : null;
+  const theme = MENU_CODE.test(code) ? await findPublicTheme(c.env.DB, code, Date.now()) : null;
   if (!theme) return new Response("Not found", { status: 404 });
   return new Response(themeCss(theme), {
     headers: {

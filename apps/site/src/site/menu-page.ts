@@ -105,7 +105,7 @@ ${categories.map(
 ${restaurant.note ? html`<p class="note">${restaurant.note}</p>` : ""}
 </main>`
     : html`<main class="wrap"><p class="empty">The menu is being prepared. Please check back soon.</p></main>`}
-${restaurant.plan === "free" ? html`<footer class="powered"><a href="https://tomatofry.com/">Powered by TomatoFry</a></footer>` : ""}`,
+${restaurant.showPoweredBy ? html`<footer class="powered"><a href="https://tomatofry.com/">Powered by TomatoFry</a></footer>` : ""}`,
     canonical,
   );
 }
