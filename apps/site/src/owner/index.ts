@@ -17,6 +17,7 @@ import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { registerProfileRoutes } from "./profile";
+import { registerQrRoutes } from "./qr";
 import { registerThemeRoutes } from "./theme";
 import { getDummyHash, hashPassword, verifyPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
@@ -37,6 +38,7 @@ ownerApp.use("*", csrf({ origin: (origin, c) => origin === new URL(c.req.url).or
 ownerApp.get("/app.css", (c) => c.env.ASSETS.fetch(new URL("/app/app.css", c.req.url)));
 ownerApp.get("/logo.svg", (c) => c.env.ASSETS.fetch(new URL("/logo.svg", c.req.url)));
 ownerApp.get("/photo.js", (c) => c.env.ASSETS.fetch(new URL("/app/photo.js", c.req.url)));
+ownerApp.get("/print.js", (c) => c.env.ASSETS.fetch(new URL("/app/print.js", c.req.url)));
 // Dish photos on the same hostname, so the dashboard needs no extra image source in its CSP.
 ownerApp.get("/media/*", (c) => serveMedia(c.env.MEDIA, c.req.path));
 
@@ -214,3 +216,5 @@ registerMenuRoutes(ownerApp);
 registerThemeRoutes(ownerApp);
 // The restaurant profile and logo.
 registerProfileRoutes(ownerApp);
+// The menu QR code, its PNG download, and the print card.
+registerQrRoutes(ownerApp);
