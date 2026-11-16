@@ -155,6 +155,7 @@ ${preview
 <button class="button" type="submit" name="intent" value="save">Save plan</button>
 </form>
 </section>
+<p><a class="button secondary small" href="/trials/new?restaurant=${restaurant.menuCode}">Offer a trial</a></p>
 <section class="card form admin-section" aria-labelledby="status-heading">
 <h2 id="status-heading">Status</h2>
 ${restaurant.status === "active"
