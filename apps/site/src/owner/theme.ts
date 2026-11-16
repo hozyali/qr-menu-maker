@@ -56,13 +56,13 @@ function notOnPlan(c: OwnerContext) {
 
 export function registerThemeRoutes(app: Hono<OwnerEnv>) {
   app.get("/theme", async (c) => {
-    if (!planAllows(c.get("owner").plan, "custom_theme")) return notOnPlan(c);
+    if (!planAllows(c.get("owner").entitlements, "custom_theme")) return notOnPlan(c);
     const theme = await tenantDb(c.env.DB, c.get("owner").restaurantId).getTheme();
     return c.html(themePage(c, theme, c.req.query("saved") ? { kind: "saved", text: "Theme saved." } : null));
   });
 
   app.post("/theme", async (c) => {
-    if (!planAllows(c.get("owner").plan, "custom_theme")) return notOnPlan(c);
+    if (!planAllows(c.get("owner").entitlements, "custom_theme")) return notOnPlan(c);
     const form = await c.req.formData();
     const color = readText(form, "color").toLowerCase();
     const mode = readText(form, "mode");

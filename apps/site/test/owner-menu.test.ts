@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { planLimit, planAllows, effectivePlan } from "../src/shared/plans";
+import { loadEntitlements } from "../src/shared/plans-db";
 import { db, get, newOwner, passTurnstile, post } from "./helpers";
 
 beforeEach(() => passTurnstile());
@@ -37,13 +38,16 @@ async function addDish(cookie: string, category: string, name: string, priceRows
 }
 
 describe("plans", () => {
-  it("gives the Free plan 25 dishes and the theme", () => {
-    expect(planLimit("free", "max_items")).toBe(25);
-    expect(planAllows("free", "custom_theme")).toBe(true);
+  // Since issue #38 the plans live in the database. These check the seeded plans through the same
+  // functions the app uses.
+  it("gives the Free plan 25 dishes and the theme", async () => {
+    const free = await loadEntitlements(db, "free");
+    expect(planLimit(free, "max_items")).toBe(25);
+    expect(planAllows(free, "custom_theme")).toBe(true);
   });
 
-  it("gives Pro unlimited dishes", () => {
-    expect(planLimit("pro", "max_items")).toBeNull();
+  it("gives Pro unlimited dishes", async () => {
+    expect(planLimit(await loadEntitlements(db, "pro"), "max_items")).toBeNull();
   });
 
   it("treats an expired Pro plan as Free", () => {
@@ -187,7 +191,8 @@ describe("dishes", () => {
     }
     const response = await addDish(cookie, many, `Dish ${restaurantId} 26`, [["", "100"]]);
     expect(response.status).toBe(403);
-    expect(await response.text()).toMatch(/Pro/);
+    // Since issue #38 the message names the restaurant's own plan, because the admin can rename plans.
+    expect(await response.text()).toContain("Your Free plan allows 25 dishes.");
     const count = await db.prepare("SELECT COUNT(*) AS n FROM items WHERE restaurant_id = ?").bind(restaurantId).first<{ n: number }>();
     expect(count?.n).toBe(25);
   });

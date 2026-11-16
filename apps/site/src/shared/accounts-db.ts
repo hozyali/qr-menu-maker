@@ -1,7 +1,8 @@
 // Account queries: users, sessions, and login attempts.
 // These work before a restaurant is known (signup and login), so they cannot use the tenant helper.
 // Every query here is reviewed by hand and never returns another restaurant's menu data (Law 18).
-import { effectivePlan, type Plan } from "./plans";
+import { effectivePlan, type Entitlements } from "./plans";
+import { loadEntitlements } from "./plans-db";
 
 export interface OwnerLogin {
   userId: string;
@@ -15,8 +16,8 @@ export interface OwnerSession {
   city: string | null;
   /** The permanent code in menu links and QR codes (Law 28). */
   menuCode: string;
-  /** Effective plan: an expired Pro plan is already turned into Free here. */
-  plan: Plan;
+  /** Features and limits of the effective plan (issue #38). An expired Pro is already Free here. */
+  entitlements: Entitlements;
 }
 
 const encoder = new TextEncoder();
@@ -118,16 +119,16 @@ export async function findOwnerSession(db: D1Database, token: string, now: numbe
     )
     .bind(await sha256Hex(token), now)
     .first<{ user_id: string; restaurant_id: string; name: string; city: string | null; menu_code: string; plan: string; plan_expires_at: number | null }>();
-  return row
-    ? {
-        userId: row.user_id,
-        restaurantId: row.restaurant_id,
-        restaurantName: row.name,
-        city: row.city,
-        menuCode: row.menu_code,
-        plan: effectivePlan(row.plan, row.plan_expires_at, now),
-      }
-    : null;
+  if (!row) return null;
+  return {
+    userId: row.user_id,
+    restaurantId: row.restaurant_id,
+    restaurantName: row.name,
+    city: row.city,
+    menuCode: row.menu_code,
+    // One more indexed query for the plan's features, read fresh on every request.
+    entitlements: await loadEntitlements(db, effectivePlan(row.plan, row.plan_expires_at, now)),
+  };
 }
 
 export async function deleteSession(db: D1Database, token: string): Promise<void> {

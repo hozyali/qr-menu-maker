@@ -5,7 +5,7 @@ import { page } from "../shared/layout";
 import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { menuLink, menuPath } from "../shared/menu-link";
 import { formatMoney } from "../shared/money";
-import { planLimit } from "../shared/plans";
+import { planAllows, planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
 
@@ -176,7 +176,7 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
     const current = categories.find((cat) => cat.id === requested) ?? categories[0];
     const items = current ? await db.listItems(current.id) : [];
     const used = await db.countItems();
-    const limit = planLimit(owner.plan, "max_items");
+    const limit = planLimit(owner.entitlements, "max_items");
     const notice = c.req.query("notice");
 
     return c.html(
@@ -191,9 +191,9 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
 <form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
 </div>
 </header>
-${notice === "limit" ? html`<p class="error" role="alert">You have used all ${limit} dishes on the Free plan. Upgrade to Pro to add more.</p>` : ""}
+${notice === "limit" ? html`<p class="error" role="alert">You have used all ${limit} dishes on your ${owner.entitlements.planName} plan.</p>` : ""}
 <div class="stats">
-<div class="stat"><span class="meta">Plan</span><strong>${owner.plan === "pro" ? "Pro" : "Free"}</strong></div>
+<div class="stat"><span class="meta">Plan</span><strong>${owner.entitlements.planName}</strong></div>
 <div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${used} of ${limit}`}</strong></div>
 <div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}${menuPath(owner.menuCode, owner.restaurantName, owner.city)}" target="_blank" rel="noopener"><strong>${menuLink(owner.menuCode, owner.restaurantName, owner.city).replace("https://", "")}</strong></a></div>
 </div>
@@ -299,10 +299,11 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
       return c.html(dishPage("Add dish", "/items", categories, dish, dish.error), 400);
     }
     // The plan limit is checked on the server, so it cannot be skipped from the browser.
-    const limit = planLimit(owner.plan, "max_items");
+    const limit = planLimit(owner.entitlements, "max_items");
     if (limit !== null && (await db.countItems()) >= limit) {
       return c.html(
-        dishPage("Add dish", "/items", categories, dish, `The Free plan allows ${limit} dishes. Upgrade to Pro to add more.`),
+        // The plan's own name and limit, since the admin can rename plans and change limits (issue #38).
+        dishPage("Add dish", "/items", categories, dish, `Your ${owner.entitlements.planName} plan allows ${limit} ${limit === 1 ? "dish" : "dishes"}.`),
         403,
       );
     }
@@ -320,7 +321,8 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
         name: item.name,
         description: item.description ?? "",
         rows: item.prices.map((p) => ({ label: p.label, amount: String(p.amountMinor / 100) })),
-      }, "", item),
+      // The photo form shows only while the plan has dish photos (issue #38).
+      }, "", planAllows(c.get("owner").entitlements, "dish_photos") ? item : null),
     );
   });
 
@@ -364,6 +366,10 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
 
   app.post("/items/:id/photo", async (c) => {
     const owner = c.get("owner");
+    // Checked on the server, so a switched-off feature cannot be used from the browser (issue #38).
+    if (!planAllows(owner.entitlements, "dish_photos")) {
+      return c.html(page("Photo", html`<h1>Photos are not part of your plan</h1><p class="lead"><a href="/">Back to your menu</a></p>`), 403);
+    }
     const db = menuDb(c);
     // Ownership is checked before anything is stored (Law 18).
     const item = await db.getItem(c.req.param("id"));

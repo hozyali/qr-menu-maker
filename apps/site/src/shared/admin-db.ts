@@ -1,7 +1,7 @@
 // Master admin queries (issue #36). The admin works across all restaurants, so these are separate,
 // explicit, reviewed queries outside the tenant helper (Law 18). The caller must have checked the
 // admin session and role first. Every value is bound (Law 17).
-import { effectivePlan, type Plan } from "./plans";
+import { effectivePlan, type LegacyPlan } from "./plans";
 
 export const PAGE_SIZE = 25;
 
@@ -29,7 +29,7 @@ export interface RestaurantRow {
   id: string;
   name: string;
   city: string | null;
-  plan: Plan;
+  plan: LegacyPlan;
   /** The stored plan, before an expired Pro turns into Free. */
   storedPlan: string;
   planExpiresAt: number | null;
@@ -123,7 +123,7 @@ export async function setPlan(
   db: D1Database,
   actorUserId: string,
   restaurant: RestaurantDetail,
-  change: { plan: Plan; expiresAt: number | null; expiresLabel: string | null; fromLabel: string | null },
+  change: { plan: LegacyPlan; expiresAt: number | null; expiresLabel: string | null; fromLabel: string | null },
 ): Promise<void> {
   await changeWithAudit(
     db,

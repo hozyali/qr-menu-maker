@@ -15,6 +15,7 @@ import { page } from "../shared/layout";
 import { menuLink } from "../shared/menu-link";
 import { endOfPakistanDay, pakistanDate } from "../shared/pakistan-date";
 import { readText } from "../shared/validation";
+import { adminHeader } from "./nav";
 
 // Master admin pages (issue #36). The admin session and role are checked before these routes run.
 
@@ -125,10 +126,7 @@ export function registerRestaurantRoutes(app: Hono<AdminEnv>) {
     return c.html(
       page(
         "Admin",
-        html`<header class="top">
-<h1>TomatoFry admin</h1>
-<form method="post" action="/logout"><button class="button secondary small" type="submit">Log out</button></form>
-</header>
+        html`${adminHeader("TomatoFry admin", "restaurants")}
 <p class="lead">Logged in as ${c.get("admin").email}. Restaurants, newest first.</p>
 ${rows.length === 0
     ? html`<div class="card empty"><h2>No restaurants yet</h2><p>Restaurants appear here when owners sign up.</p></div>`
