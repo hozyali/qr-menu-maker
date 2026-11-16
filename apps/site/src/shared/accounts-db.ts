@@ -20,6 +20,8 @@ export interface OwnerSession {
   entitlements: Entitlements;
   /** When the plan in use ends, or null for no end. */
   planEndsAt: number | null;
+  /** "trial" while a free trial runs (issue #42). */
+  planStatus: "active" | "trial";
 }
 
 const encoder = new TextEncoder();
@@ -140,6 +142,7 @@ export async function findOwnerSession(db: D1Database, token: string, now: numbe
     menuCode: row.menu_code,
     entitlements: plan.entitlements,
     planEndsAt: plan.endsAt,
+    planStatus: plan.status,
   };
 }
 

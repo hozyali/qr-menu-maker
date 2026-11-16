@@ -6,6 +6,7 @@ import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { menuLink, menuPath } from "../shared/menu-link";
 import { formatMoney } from "../shared/money";
 import { pakistanDate } from "../shared/pakistan-date";
+import { trialBanner, trialFor } from "./trial";
 import { planAllows, planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
@@ -201,6 +202,8 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
     const used = await db.countItems();
     // Dishes past the plan's limit are archived (issue #39). null means every dish is active.
     const activeIds = await db.activeItemIds(planLimit(owner.entitlements, "max_items"));
+    // A free trial offer for this restaurant, if there is one (issue #42).
+    const trial = await trialFor(c.env.DB, owner, Date.now());
     const limit = planLimit(owner.entitlements, "max_items");
     const notice = c.req.query("notice");
 
@@ -218,8 +221,9 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
 </div>
 </header>
 ${notice === "limit" ? html`<p class="error" role="alert">You have used all ${limit} dishes on your ${owner.entitlements.planName} plan.</p>` : ""}
+${trialBanner(trial)}
 <div class="stats">
-<div class="stat"><span class="meta">Plan</span><strong>${owner.entitlements.planName}${owner.planEndsAt ? ` until ${pakistanDate(owner.planEndsAt)}` : ""}</strong></div>
+<div class="stat"><span class="meta">Plan</span><strong>${owner.entitlements.planName}${owner.planStatus === "trial" ? " trial" : ""}${owner.planEndsAt ? ` until ${pakistanDate(owner.planEndsAt)}` : ""}</strong></div>
 <div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${Math.min(used, limit)} of ${limit}`}</strong>${limit !== null && used > limit ? html`<span class="meta">${used - limit} archived</span>` : ""}</div>
 <div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}${menuPath(owner.menuCode, owner.restaurantName, owner.city)}" target="_blank" rel="noopener"><strong>${menuLink(owner.menuCode, owner.restaurantName, owner.city).replace("https://", "")}</strong></a></div>
 </div>

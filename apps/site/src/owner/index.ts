@@ -10,6 +10,7 @@ import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { registerProfileRoutes } from "./profile";
 import { registerPlanPageRoutes } from "./plan";
 import { registerQrRoutes } from "./qr";
+import { registerOwnerTrialRoutes } from "./trial";
 import { registerThemeRoutes } from "./theme";
 import { hashPassword } from "../shared/password";
 import { verifyTurnstile } from "../shared/turnstile";
@@ -186,3 +187,5 @@ registerProfileRoutes(ownerApp);
 registerQrRoutes(ownerApp);
 // The plan page: upgrade or renew with an offline payment (issue #41).
 registerPlanPageRoutes(ownerApp);
+// Starting a free trial (issue #42).
+registerOwnerTrialRoutes(ownerApp);
