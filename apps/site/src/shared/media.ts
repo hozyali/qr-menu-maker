@@ -34,6 +34,14 @@ export async function checkImageUpload(file: File | string | null): Promise<Uplo
   return { ok: true, bytes, type };
 }
 
+/**
+ * Payment receipts are private (issue #41). The extra "receipts/" folder means the public PHOTO_KEY
+ * pattern below never matches them, so /media can never serve a receipt.
+ */
+export function newReceiptKey(restaurantId: string, type: ImageType): string {
+  return `restaurants/${restaurantId}/receipts/${crypto.randomUUID()}.${type.extension}`;
+}
+
 export function newPhotoKey(restaurantId: string, type: ImageType): string {
   return `restaurants/${restaurantId}/${crypto.randomUUID()}.${type.extension}`;
 }

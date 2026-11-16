@@ -2,6 +2,7 @@
 // explicit, reviewed queries outside the tenant helper (Law 18). The caller must have checked the
 // admin session and role first. Every value is bound (Law 17).
 // Since issue #39 a restaurant's plan comes from subscriptions, not restaurants.plan.
+import { subscriptionUpsert } from "./subscriptions-db";
 
 export const PAGE_SIZE = 25;
 
@@ -173,19 +174,16 @@ export async function setSubscription(
   const now = Date.now();
   await changeWithAudit(
     db,
-    db
-      .prepare(
-        `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at,
-                                    coupon_id, coupon_percent_off, coupon_duration)
-         VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?4, ?7, ?8, ?9)
-         ON CONFLICT (restaurant_id) DO UPDATE SET plan_id = excluded.plan_id, billing_period = excluded.billing_period,
-           status = 'active', started_at = excluded.started_at, ends_at = excluded.ends_at,
-           price_minor = excluded.price_minor, updated_at = excluded.updated_at,
-           coupon_id = excluded.coupon_id, coupon_percent_off = excluded.coupon_percent_off,
-           coupon_duration = excluded.coupon_duration`,
-      )
-      .bind(restaurant.id, change.planId, change.period, now, change.endsAt, change.priceMinor,
-        change.coupon?.id ?? null, change.coupon?.percentOff ?? null, change.coupon?.duration ?? null),
+    // The same statement payment approval uses (issue #41).
+    subscriptionUpsert(db, restaurant.id, {
+      planId: change.planId,
+      period: change.period,
+      status: "active",
+      startedAt: now,
+      endsAt: change.endsAt,
+      priceMinor: change.priceMinor,
+      coupon: change.coupon,
+    }),
     {
       actorUserId,
       action: "subscription_changed",

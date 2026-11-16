@@ -6,7 +6,8 @@ import { toEntitlements } from "./plans-db";
 
 // The SQL is listed here so a test can prove each query uses an index (Law 26).
 export const SUBSCRIPTION_SQL = {
-  current: "SELECT plan_id, billing_period, status, started_at, ends_at, price_minor FROM subscriptions WHERE restaurant_id = ?1",
+  current: `SELECT plan_id, billing_period, status, started_at, ends_at, price_minor, coupon_percent_off, coupon_duration
+            FROM subscriptions WHERE restaurant_id = ?1`,
   // The plan in use: the subscription's plan while it has not ended, otherwise the signup plan.
   // Worked out on every read, so an ended plan needs no scheduled job.
   planFeatures: `SELECT p.id, p.name, p.is_free, e.feature_key, e.enabled, e.limit_value
@@ -30,6 +31,8 @@ export interface CurrentPlan {
   status: "active" | "trial";
   /** True when the subscription's plan has ended and the signup plan is used instead. */
   ended: boolean;
+  /** The coupon terms copied onto the subscription (issue #40), while the plan has not ended. */
+  coupon: { percentOff: number; duration: "once" | "recurring" } | null;
 }
 
 type Row = Record<string, unknown>;
@@ -52,7 +55,41 @@ export async function currentPlan(db: D1Database, restaurantId: string, now: num
     billingPeriod: ended ? "none" : row?.billing_period === "monthly" || row?.billing_period === "yearly" ? row.billing_period : "none",
     status: !ended && row?.status === "trial" ? "trial" : "active",
     ended,
+    coupon:
+      !ended && row?.coupon_percent_off !== null && row?.coupon_percent_off !== undefined
+        ? { percentOff: Number(row.coupon_percent_off), duration: row.coupon_duration === "recurring" ? "recurring" : "once" }
+        : null,
   };
+}
+
+export interface NewSubscription {
+  planId: string;
+  period: "monthly" | "yearly" | "none";
+  status: "active" | "trial";
+  startedAt: number;
+  endsAt: number | null;
+  priceMinor: number;
+  coupon: { id: string | null; percentOff: number; duration: "once" | "recurring" } | null;
+}
+
+/**
+ * Writes a restaurant's subscription in place (Law 26). Used by the admin plan form (issue #39) and
+ * payment approval (issue #41), always inside a batch with its audit row.
+ */
+export function subscriptionUpsert(db: D1Database, restaurantId: string, sub: NewSubscription): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at,
+                                  coupon_id, coupon_percent_off, coupon_duration)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?5, ?8, ?9, ?10)
+       ON CONFLICT (restaurant_id) DO UPDATE SET plan_id = excluded.plan_id, billing_period = excluded.billing_period,
+         status = excluded.status, started_at = excluded.started_at, ends_at = excluded.ends_at,
+         price_minor = excluded.price_minor, updated_at = excluded.updated_at,
+         coupon_id = excluded.coupon_id, coupon_percent_off = excluded.coupon_percent_off,
+         coupon_duration = excluded.coupon_duration`,
+    )
+    .bind(restaurantId, sub.planId, sub.period, sub.status, sub.startedAt, sub.endsAt, sub.priceMinor,
+      sub.coupon?.id ?? null, sub.coupon?.percentOff ?? null, sub.coupon?.duration ?? null);
 }
 
 /** SQLite treats a negative LIMIT as no limit. */

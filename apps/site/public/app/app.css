@@ -170,3 +170,13 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
 .dish.archived { grid-template-columns: 56px minmax(0, 1fr) auto; opacity: 0.75; }
 .dish.archived .dish-main strong { color: var(--muted); }
 .stat .meta + strong + .meta { font-size: 14px; }
+
+/* Plan page and payments (issue #41) */
+.notice-card { border-left: 4px solid var(--accent); }
+.bank-details { white-space: pre-line; background: var(--bg); padding: 12px; border-radius: var(--radius); margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 15px; }
+.drop-zone { display: grid; gap: 6px; padding: var(--space-2); border: 2px dashed #8f8b84; border-radius: var(--radius); background: var(--surface); }
+.drop-zone label { font-weight: 600; font-size: 15px; }
+.drop-zone.dragging { border-color: var(--accent); background: var(--bg); }
+.field textarea { font: inherit; padding: 12px; border: 1px solid #8f8b84; border-radius: var(--radius); background: var(--surface); color: var(--ink); width: 100%; }
+.receipt { display: block; max-width: 100%; max-height: 70vh; border-radius: var(--radius); border: 1px solid var(--tone); }
+.badge:not(.ok):not(.warn) { background: var(--tone); color: var(--ink); }

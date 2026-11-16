@@ -8,6 +8,7 @@ import { page } from "../shared/layout";
 import { serveMedia } from "../shared/media";
 import { registerMenuRoutes, type OwnerEnv } from "./menu";
 import { registerProfileRoutes } from "./profile";
+import { registerPlanPageRoutes } from "./plan";
 import { registerQrRoutes } from "./qr";
 import { registerThemeRoutes } from "./theme";
 import { hashPassword } from "../shared/password";
@@ -29,6 +30,7 @@ ownerApp.get("/app.css", (c) => c.env.ASSETS.fetch(new URL("/app/app.css", c.req
 ownerApp.get("/logo.svg", (c) => c.env.ASSETS.fetch(new URL("/logo.svg", c.req.url)));
 ownerApp.get("/photo.js", (c) => c.env.ASSETS.fetch(new URL("/app/photo.js", c.req.url)));
 ownerApp.get("/print.js", (c) => c.env.ASSETS.fetch(new URL("/app/print.js", c.req.url)));
+ownerApp.get("/drop.js", (c) => c.env.ASSETS.fetch(new URL("/app/drop.js", c.req.url)));
 // Dish photos on the same hostname, so the dashboard needs no extra image source in its CSP.
 ownerApp.get("/media/*", (c) => serveMedia(c.env.MEDIA, c.req.path));
 
@@ -182,3 +184,5 @@ registerThemeRoutes(ownerApp);
 registerProfileRoutes(ownerApp);
 // The menu QR code, its PNG download, and the print card.
 registerQrRoutes(ownerApp);
+// The plan page: upgrade or renew with an offline payment (issue #41).
+registerPlanPageRoutes(ownerApp);

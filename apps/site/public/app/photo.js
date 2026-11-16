@@ -2,9 +2,10 @@
 // If anything fails, the original file is uploaded and the server still checks it.
 (function () {
   "use strict";
-  var MAX_SIDE = 800;
   var forms = document.querySelectorAll("[data-photo-form]");
   forms.forEach(function (form) {
+    // Dish photos and logos use 800 px. Receipts set data-max-side="1600" so their text stays readable (issue #41).
+    var MAX_SIDE = Number(form.getAttribute("data-max-side")) || 800;
     var input = form.querySelector('input[type="file"]');
     if (!input || !window.createImageBitmap || !window.DataTransfer) return;
     input.addEventListener("change", function () {
