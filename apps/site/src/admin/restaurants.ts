@@ -15,7 +15,9 @@ import { page } from "../shared/layout";
 import { menuLink } from "../shared/menu-link";
 import { formatMoney } from "../shared/money";
 import { addBillingPeriod, endOfPakistanDay, pakistanDate } from "../shared/pakistan-date";
+import { checkCoupon, redemptionStatements, type UsableCoupon } from "../shared/coupons-db";
 import { getPlan, listPlans } from "../shared/plans-db";
+import { type Price, priceFor } from "../shared/pricing";
 import { readText } from "../shared/validation";
 import { adminHeader } from "./nav";
 
@@ -38,7 +40,7 @@ function planLabel(row: RestaurantRow): string {
   return row.endsAt === null ? `${row.planName}${period}` : `${row.planName}${period}, until ${pakistanDate(row.endsAt)}`;
 }
 
-type PlanFormValues = { plan_id: string; period: string; end: string; end_date: string };
+type PlanFormValues = { plan_id: string; period: string; end: string; end_date: string; coupon: string };
 
 function statusBadge(status: string) {
   return html`<span class="badge ${status === "active" ? "ok" : "warn"}">${status === "active" ? "Active" : "Suspended"}</span>`;
@@ -51,10 +53,13 @@ function notFound(c: AdminContext) {
 function describe(entry: HistoryEntry): string {
   if (entry.action === "subscription_changed" && entry.details) {
     try {
-      type Side = { plan?: string; period?: string; ends?: string | null };
+      type Side = { plan?: string; period?: string; ends?: string | null; price?: number; coupon?: string | null };
       const d = JSON.parse(entry.details) as { from?: Side; to?: Side };
       const side = (x?: Side) => `${x?.plan ?? "?"}${x?.period && x.period !== "none" ? ` ${x.period}` : ""}${x?.ends ? ` until ${x.ends}` : ""}`;
-      return `Plan: ${side(d.from)} to ${side(d.to)}`;
+      // Price and coupon were added to the log in issue #40, so older entries simply leave them out.
+      const price = typeof d.to?.price === "number" && d.to.price > 0 ? `, ${formatMoney(d.to.price)}` : "";
+      const coupon = d.to?.coupon ? ` with coupon ${d.to.coupon}` : "";
+      return `Plan: ${side(d.from)} to ${side(d.to)}${price}${coupon}`;
     } catch {
       return entry.action;
     }
@@ -69,10 +74,19 @@ function describe(entry: HistoryEntry): string {
       return entry.action;
     }
   }
+  if (entry.action.startsWith("coupon_") && entry.details) {
+    try {
+      const d = JSON.parse(entry.details) as { code?: string; percentOff?: number };
+      const verb = entry.action === "coupon_created" ? "created" : entry.action === "coupon_disabled" ? "turned off" : "turned on";
+      return `Coupon ${d.code ?? ""} ${verb}${d.percentOff ? ` (${d.percentOff}% off)` : ""} for this restaurant`;
+    } catch {
+      return entry.action;
+    }
+  }
   return entry.action === "restaurant_suspended" ? "Suspended" : entry.action === "restaurant_reactivated" ? "Reactivated" : entry.action;
 }
 
-async function detailPage(c: AdminContext, id: string, error = "", values?: PlanFormValues) {
+async function detailPage(c: AdminContext, id: string, error = "", values?: PlanFormValues, preview?: Price) {
   const now = Date.now();
   const restaurant = await getRestaurant(c.env.DB, id, now);
   if (!restaurant) return null;
@@ -85,6 +99,7 @@ async function detailPage(c: AdminContext, id: string, error = "", values?: Plan
     period: restaurant.billingPeriod,
     end: restaurant.endsAt === null || restaurant.ended ? "none" : "date",
     end_date: restaurant.endsAt === null || restaurant.ended ? "" : pakistanDate(restaurant.endsAt),
+    coupon: "",
   };
   const checked = (on: boolean) => (on ? html` checked` : "");
   return page(
@@ -130,7 +145,14 @@ ${error ? html`<p class="error" role="alert">${error}</p>` : ""}
 <div class="field"><label for="end_date">Last day</label>
 <input id="end_date" name="end_date" type="date" value="${form.end_date}" aria-describedby="end-hint">
 <p class="hint" id="end-hint">Used with "On a date". The plan ends at 11:59 pm Pakistan time on this day. A free plan has no period and no end. When a plan ends, the restaurant moves to the signup plan, and the menu and QR code keep working.</p></div>
-<button class="button" type="submit">Save plan</button>
+<div class="field"><label for="coupon">Coupon (optional)</label>
+<input id="coupon" name="coupon" value="${form.coupon}" maxlength="20" autocapitalize="characters" aria-describedby="coupon-hint">
+<p class="hint" id="coupon-hint">For paid plans. Press "Check price" to see the price before saving.</p></div>
+${preview
+    ? html`<p class="notice" role="status">Price for this period: ${formatMoney(preview.listMinor)}${preview.discountMinor > 0 ? ` minus ${formatMoney(preview.discountMinor)} = ${formatMoney(preview.finalMinor)}` : ""}. Nothing is saved yet.</p>`
+    : ""}
+<button class="button secondary" type="submit" name="intent" value="preview">Check price</button>
+<button class="button" type="submit" name="intent" value="save">Save plan</button>
 </form>
 </section>
 <section class="card form admin-section" aria-labelledby="status-heading">
@@ -199,6 +221,7 @@ ${next ? html`<p class="pager"><a class="button secondary small" href="/?before=
       period: readText(body, "period"),
       end: readText(body, "end"),
       end_date: readText(body, "end_date"),
+      coupon: readText(body, "coupon").toUpperCase(),
     };
     const fail = async (message: string) => c.html((await detailPage(c, id, message, values)) ?? "", 400);
 
@@ -229,14 +252,35 @@ ${next ? html`<p class="pager"><a class="button secondary small" href="/?before=
       }
     }
     // The price for this period is copied, so later price changes do not affect it.
-    const price = period === "monthly" ? plan.monthlyPriceMinor : period === "yearly" ? plan.yearlyPriceMinor : null;
-    await setSubscription(
-      c.env.DB,
-      c.get("admin").userId,
-      restaurant,
-      { planId: plan.id, planName: plan.name, period, endsAt, endsLabel, priceMinor: price ?? 0 },
-      restaurant.endsAt === null ? null : pakistanDate(restaurant.endsAt),
-    );
+    const listMinor = (period === "monthly" ? plan.monthlyPriceMinor : period === "yearly" ? plan.yearlyPriceMinor : null) ?? 0;
+    // A coupon is checked against this restaurant, plan, and period (issue #40). The admin sees the exact reason.
+    let coupon: UsableCoupon | null = null;
+    if (values.coupon) {
+      if (period === "none") return fail("Coupons only apply to paid plans with a monthly or yearly period.");
+      const check = await checkCoupon(c.env.DB, values.coupon, { restaurantId: restaurant.id, planId: plan.id, period, now: Date.now() });
+      if (!check.ok) return fail(`Coupon ${values.coupon}: ${check.reason}.`);
+      coupon = check.coupon;
+    }
+    // A plan set by the admin starts a new first period, so a one-time coupon applies.
+    const price = priceFor({ listMinor, coupon, isRenewal: false });
+    if (readText(body, "intent") === "preview") {
+      return c.html((await detailPage(c, id, "", values, price)) ?? "");
+    }
+    try {
+      await setSubscription(
+        c.env.DB,
+        c.get("admin").userId,
+        restaurant,
+        { planId: plan.id, planName: plan.name, period, endsAt, endsLabel, priceMinor: price.finalMinor, coupon },
+        restaurant.endsAt === null ? null : pakistanDate(restaurant.endsAt),
+        coupon ? redemptionStatements(c.env.DB, coupon.id, restaurant.id) : [],
+      );
+    } catch (error) {
+      // The coupon rules in the database refused it: used by this restaurant already, or the use limit
+      // was reached a moment ago. The whole change was rolled back, so nothing was saved.
+      if (!coupon) throw error;
+      return fail(`Coupon ${values.coupon} could not be used: it has just reached its limit or this restaurant already used it. Nothing was saved.`);
+    }
     return c.redirect(`/restaurants/${id}`, 303);
   });
 
