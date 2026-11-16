@@ -33,12 +33,3 @@ export function planLimit(entitlements: Entitlements, limit: LimitKey): number |
   const value = entitlements.limits[limit];
   return value === undefined ? 0 : value;
 }
-
-/** Until subscriptions arrive (issue #39), restaurants.plan picks the plan. An expired Pro counts as Free. */
-export type LegacyPlan = "free" | "pro";
-export function effectivePlan(plan: string, planExpiresAt: number | null, now: number): LegacyPlan {
-  if (plan === "pro" && (planExpiresAt === null || planExpiresAt > now)) {
-    return "pro";
-  }
-  return "free";
-}

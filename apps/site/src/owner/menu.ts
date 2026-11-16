@@ -5,6 +5,7 @@ import { page } from "../shared/layout";
 import { checkImageUpload, deletePhotos, newPhotoKey } from "../shared/media";
 import { menuLink, menuPath } from "../shared/menu-link";
 import { formatMoney } from "../shared/money";
+import { pakistanDate } from "../shared/pakistan-date";
 import { planAllows, planLimit } from "../shared/plans";
 import { type Item, type Price, tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
@@ -151,6 +152,28 @@ function confirmPage(title: string, message: string, action: string, back: strin
   );
 }
 
+/** Dishes past the plan's limit are archived: hidden from customers and locked for the owner (issue #39). */
+async function archivedLock(c: OwnerContext, itemId: string) {
+  const limit = planLimit(c.get("owner").entitlements, "max_items");
+  if (!(await menuDb(c).isItemArchived(itemId, limit))) return null;
+  return c.html(
+    page(
+      "Archived dish",
+      html`<h1>This dish is archived</h1><p class="lead">It is over your plan's dish limit, so it is hidden from your menu and cannot be changed. You can delete it, or upgrade your plan to bring it back. <a href="/">Back to your menu</a></p>`,
+    ),
+    403,
+  );
+}
+
+function archivedRow(item: Item) {
+  return html`<li class="dish archived">
+${item.photoKey ? html`<img class="thumb" src="/media/${item.photoKey}" alt="" width="56" height="56" loading="lazy">` : html`<span class="thumb empty-thumb" aria-hidden="true"></span>`}
+<div class="dish-main"><strong>${item.name}</strong>
+<span class="meta">Archived: over your plan's dish limit. Hidden from your menu.</span></div>
+<a class="button secondary small" href="/items/${item.id}/delete">Delete</a>
+</li>`;
+}
+
 function dishRow(item: Item) {
   return html`<li class="dish">
 ${item.photoKey ? html`<img class="thumb" src="/media/${item.photoKey}" alt="" width="56" height="56" loading="lazy">` : html`<span class="thumb empty-thumb" aria-hidden="true"></span>`}
@@ -176,6 +199,8 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
     const current = categories.find((cat) => cat.id === requested) ?? categories[0];
     const items = current ? await db.listItems(current.id) : [];
     const used = await db.countItems();
+    // Dishes past the plan's limit are archived (issue #39). null means every dish is active.
+    const activeIds = await db.activeItemIds(planLimit(owner.entitlements, "max_items"));
     const limit = planLimit(owner.entitlements, "max_items");
     const notice = c.req.query("notice");
 
@@ -193,8 +218,8 @@ export function registerMenuRoutes(app: Hono<OwnerEnv>) {
 </header>
 ${notice === "limit" ? html`<p class="error" role="alert">You have used all ${limit} dishes on your ${owner.entitlements.planName} plan.</p>` : ""}
 <div class="stats">
-<div class="stat"><span class="meta">Plan</span><strong>${owner.entitlements.planName}</strong></div>
-<div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${used} of ${limit}`}</strong></div>
+<div class="stat"><span class="meta">Plan</span><strong>${owner.entitlements.planName}${owner.planEndsAt ? ` until ${pakistanDate(owner.planEndsAt)}` : ""}</strong></div>
+<div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${Math.min(used, limit)} of ${limit}`}</strong>${limit !== null && used > limit ? html`<span class="meta">${used - limit} archived</span>` : ""}</div>
 <div class="stat"><span class="meta">Menu link</span><a class="link" href="${siteOrigin(c.req.url)}${menuPath(owner.menuCode, owner.restaurantName, owner.city)}" target="_blank" rel="noopener"><strong>${menuLink(owner.menuCode, owner.restaurantName, owner.city).replace("https://", "")}</strong></a></div>
 </div>
 <nav class="tabs" aria-label="Categories">
@@ -221,7 +246,7 @@ ${
 <input id="rename" name="name" maxlength="40" value="${current.name}" required>
 <button class="button secondary small" type="submit">Rename</button>
 </form>
-${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`<p class="empty">No dishes in ${current.name} yet. Add the first one.</p>`}
+${items.length > 0 ? html`<ul class="dishes">${items.map((item) => (activeIds && !activeIds.has(item.id) ? archivedRow(item) : dishRow(item)))}</ul>` : html`<p class="empty">No dishes in ${current.name} yet. Add the first one.</p>`}
 <a class="button" href="/items/new?c=${current.id}">Add dish</a>
 </section>`
     : html`<div class="card empty"><h2>Start with a category</h2><p>Add one like Karahi, BBQ, or Drinks above. Then add dishes to it.</p></div>`
@@ -315,6 +340,8 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     const db = menuDb(c);
     const item = await db.getItem(c.req.param("id"));
     if (!item) return notFound(c);
+    const locked = await archivedLock(c, item.id);
+    if (locked) return locked;
     return c.html(
       dishPage("Edit dish", `/items/${item.id}`, await db.listCategories(), {
         categoryId: item.categoryId,
@@ -329,6 +356,9 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
   app.post("/items/:id", async (c) => {
     const db = menuDb(c);
     const id = c.req.param("id");
+    if (!(await db.getItem(id))) return notFound(c);
+    const locked = await archivedLock(c, id);
+    if (locked) return locked;
     const dish = readDishForm(await c.req.formData());
     if (dish.error) {
       return c.html(dishPage("Edit dish", `/items/${id}`, await db.listCategories(), dish, dish.error), 400);
@@ -343,6 +373,8 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     const available = readText(await c.req.formData(), "available") === "1";
     const item = await db.getItem(id);
     if (!item) return notFound(c);
+    const locked = await archivedLock(c, id);
+    if (locked) return locked;
     await db.setItemAvailable(id, available);
     return c.redirect(`/?c=${encodeURIComponent(item.categoryId)}`, 303);
   });
@@ -374,6 +406,8 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     // Ownership is checked before anything is stored (Law 18).
     const item = await db.getItem(c.req.param("id"));
     if (!item) return notFound(c);
+    const locked = await archivedLock(c, item.id);
+    if (locked) return locked;
     // The checks are shared with the logo upload, so both follow the same rules (Law 19).
     const upload = await checkImageUpload((await c.req.formData()).get("photo"));
     if (!upload.ok) {
@@ -395,6 +429,8 @@ ${items.length > 0 ? html`<ul class="dishes">${items.map(dishRow)}</ul>` : html`
     const db = menuDb(c);
     const item = await db.getItem(c.req.param("id"));
     if (!item) return notFound(c);
+    const locked = await archivedLock(c, item.id);
+    if (locked) return locked;
     await db.setItemPhoto(item.id, null);
     await deletePhotos(c.env.MEDIA, [item.photoKey]);
     return c.redirect(`/items/${item.id}/edit`, 303);

@@ -165,3 +165,8 @@ h1 { font-size: 28px; line-height: 1.2; margin: 0 0 var(--space-2); }
 .limit-inputs { display: flex; align-items: center; gap: var(--space-1); }
 .limit-inputs input:not([type]) , .limit-inputs input[inputmode] { width: 96px; font: inherit; padding: 10px; border: 1px solid #8f8b84; border-radius: var(--radius); }
 .choice.small { padding: 8px 10px; font-size: 14px; }
+
+/* Archived dishes over the plan's limit (issue #39) */
+.dish.archived { grid-template-columns: 56px minmax(0, 1fr) auto; opacity: 0.75; }
+.dish.archived .dish-main strong { color: var(--muted); }
+.stat .meta + strong + .meta { font-size: 14px; }

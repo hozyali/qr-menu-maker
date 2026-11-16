@@ -24,8 +24,19 @@ async function insertRestaurant(name: string, createdAt: number) {
   return id;
 }
 
+// Since issue #39 a restaurant's plan lives in subscriptions. `plan` is the plan's name.
 async function restaurantRow(id: string) {
-  return db.prepare("SELECT plan, plan_expires_at, status FROM restaurants WHERE id = ?").bind(id).first<{ plan: string; plan_expires_at: number | null; status: string }>();
+  return db
+    .prepare(
+      `SELECT p.name AS plan, s.ends_at, s.billing_period, s.price_minor, r.status
+       FROM restaurants r JOIN subscriptions s ON s.restaurant_id = r.id JOIN plans p ON p.id = s.plan_id WHERE r.id = ?`,
+    )
+    .bind(id)
+    .first<{ plan: string; ends_at: number | null; billing_period: string; price_minor: number; status: string }>();
+}
+
+async function planId(name: "Free" | "Pro") {
+  return (await db.prepare("SELECT id FROM plans WHERE name = ? AND legacy_key IS NOT NULL").bind(name).first<{ id: string }>())?.id ?? "";
 }
 
 async function auditRows(restaurantId: string) {
@@ -44,9 +55,9 @@ describe("admin access", () => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe("/login");
     }
-    const post = await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan: "pro", expires: "" }, owner.cookie);
+    const post = await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Pro"), period: "monthly", end: "none" }, owner.cookie);
     expect(post.status).toBe(303);
-    expect((await restaurantRow(owner.restaurantId))?.plan).toBe("free");
+    expect((await restaurantRow(owner.restaurantId))?.plan).toBe("Free");
   });
 });
 
@@ -104,51 +115,88 @@ describe("restaurant detail", () => {
 });
 
 describe("plan changes", () => {
-  it("sets Pro until the end of the chosen day in Pakistan and logs it", async () => {
+  // The Pro plan gets prices for these tests, because new subscriptions copy the plan's price.
+  async function priceThePro() {
+    await db.prepare("UPDATE plans SET monthly_price_minor = 150000, yearly_price_minor = 1500000 WHERE legacy_key = 'pro'").run();
+  }
+
+  it("puts a restaurant on Pro yearly until a chosen day in Pakistan and logs it", async () => {
+    await priceThePro();
     const admin = await newAdminSession();
     const owner = await newOwner("Plan Pro");
-    const response = await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan: "pro", expires: "2099-03-31" }, admin.cookie);
+    const response = await adminPost(
+      `/restaurants/${owner.restaurantId}/plan`,
+      { plan_id: await planId("Pro"), period: "yearly", end: "date", end_date: "2099-03-31" },
+      admin.cookie,
+    );
     expect(response.status).toBe(303);
     const row = await restaurantRow(owner.restaurantId);
-    expect(row?.plan).toBe("pro");
-    // 31 March 2099, 23:59:59.999 in Pakistan (UTC+5).
-    expect(row?.plan_expires_at).toBe(Date.UTC(2099, 2, 31, 23, 59, 59, 999) - 5 * 60 * 60 * 1000);
+    // 31 March 2099, 23:59:59.999 in Pakistan (UTC+5). The price is copied from the plan.
+    expect(row).toMatchObject({ plan: "Pro", billing_period: "yearly", price_minor: 1500000, ends_at: Date.UTC(2099, 2, 31, 23, 59, 59, 999) - 5 * 60 * 60 * 1000 });
     const audit = await auditRows(owner.restaurantId);
     expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ actor_user_id: admin.userId, action: "plan_changed" });
-    expect(JSON.parse(audit[0]?.details ?? "{}")).toMatchObject({ from: { plan: "free" }, to: { plan: "pro", expires: "2099-03-31" } });
+    expect(audit[0]).toMatchObject({ actor_user_id: admin.userId, action: "subscription_changed" });
+    expect(JSON.parse(audit[0]?.details ?? "{}")).toMatchObject({ from: { plan: "Free" }, to: { plan: "Pro", period: "yearly", ends: "2099-03-31" } });
     // The owner sees the new plan on the next request.
-    expect(await (await get("/", owner.cookie)).text()).toContain("Pro");
+    expect(await (await get("/", owner.cookie)).text()).toContain("Pro until 2099-03-31");
   });
 
-  it("allows Pro with no end date, and Free always clears the date", async () => {
+  it("ends one billing period from today when asked", async () => {
+    await priceThePro();
+    const admin = await newAdminSession();
+    const owner = await newOwner("Plan Period");
+    await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Pro"), period: "monthly", end: "period" }, admin.cookie);
+    const row = await restaurantRow(owner.restaurantId);
+    const day = 24 * 60 * 60 * 1000;
+    expect(row?.ends_at).toBeGreaterThan(Date.now() + 27 * day);
+    expect(row?.ends_at).toBeLessThan(Date.now() + 32 * day);
+    expect(row).toMatchObject({ plan: "Pro", billing_period: "monthly", price_minor: 150000 });
+  });
+
+  it("allows no end date, and a free plan never has a period or an end", async () => {
     const admin = await newAdminSession();
     const owner = await newOwner("Plan Open");
-    await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan: "pro", expires: "" }, admin.cookie);
-    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "pro", plan_expires_at: null });
-    await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan: "free", expires: "2099-01-01" }, admin.cookie);
-    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "free", plan_expires_at: null });
+    await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Pro"), period: "monthly", end: "none" }, admin.cookie);
+    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "Pro", ends_at: null });
+    await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Free"), period: "yearly", end: "date", end_date: "2099-01-01" }, admin.cookie);
+    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "Free", ends_at: null, billing_period: "none", price_minor: 0 });
   });
 
   it.each([
-    ["an unknown plan", { plan: "gold", expires: "" }],
-    ["a past date", { plan: "pro", expires: "2020-01-01" }],
-    ["a broken date", { plan: "pro", expires: "2099-02-30" }],
-    ["a date in another format", { plan: "pro", expires: "31/03/2099" }],
+    ["an unknown plan", { plan_id: "0123456789abcdef0123456789abcdef", period: "monthly", end: "none" }],
+    ["a paid plan with no billing period", { plan_id: "PRO", period: "none", end: "none" }],
+    ["an unknown period", { plan_id: "PRO", period: "weekly", end: "none" }],
+    ["an unknown end choice", { plan_id: "PRO", period: "monthly", end: "later" }],
+    ["a past date", { plan_id: "PRO", period: "monthly", end: "date", end_date: "2020-01-01" }],
+    ["a broken date", { plan_id: "PRO", period: "monthly", end: "date", end_date: "2099-02-30" }],
+    ["a date in another format", { plan_id: "PRO", period: "monthly", end: "date", end_date: "31/03/2099" }],
   ])("refuses %s and changes nothing", async (_label, form) => {
     const admin = await newAdminSession();
     const owner = await newOwner("Plan Refuse");
-    expect((await adminPost(`/restaurants/${owner.restaurantId}/plan`, form, admin.cookie)).status).toBe(400);
-    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "free", plan_expires_at: null });
+    const body = { ...form, plan_id: form.plan_id === "PRO" ? await planId("Pro") : form.plan_id };
+    expect((await adminPost(`/restaurants/${owner.restaurantId}/plan`, body, admin.cookie)).status).toBe(400);
+    expect(await restaurantRow(owner.restaurantId)).toMatchObject({ plan: "Free", ends_at: null });
     expect(await auditRows(owner.restaurantId)).toHaveLength(0);
+  });
+
+  it("refuses an archived plan", async () => {
+    const admin = await newAdminSession();
+    const owner = await newOwner("Plan Archived");
+    await db.prepare("UPDATE plans SET status = 'archived' WHERE legacy_key = 'pro'").run();
+    try {
+      expect((await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Pro"), period: "monthly", end: "none" }, admin.cookie)).status).toBe(400);
+      expect((await restaurantRow(owner.restaurantId))?.plan).toBe("Free");
+    } finally {
+      await db.prepare("UPDATE plans SET status = 'active' WHERE legacy_key = 'pro'").run();
+    }
   });
 
   it("refuses a plan form posted from another site", async () => {
     const admin = await newAdminSession();
     const owner = await newOwner("Plan Csrf");
-    const response = await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan: "pro", expires: "" }, admin.cookie, "https://evil.example");
+    const response = await adminPost(`/restaurants/${owner.restaurantId}/plan`, { plan_id: await planId("Pro"), period: "monthly", end: "none" }, admin.cookie, "https://evil.example");
     expect(response.status).toBe(403);
-    expect((await restaurantRow(owner.restaurantId))?.plan).toBe("free");
+    expect((await restaurantRow(owner.restaurantId))?.plan).toBe("Free");
   });
 });
 

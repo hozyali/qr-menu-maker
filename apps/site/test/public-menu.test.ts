@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleRequest } from "../src/index";
 import { PUBLIC_MENU_SQL } from "../src/shared/public-menu-db";
 import { contrastRatio, themeColors } from "../src/shared/theme";
-import { codeOf, db, get, newOwner, passTurnstile, post } from "./helpers";
+import { codeOf, db, get, newOwner, passTurnstile, post, subscribe } from "./helpers";
 
 beforeEach(() => passTurnstile());
 afterEach(() => vi.restoreAllMocks());
@@ -69,9 +69,9 @@ describe("public menu page", () => {
   it("shows Powered by on Free and hides it on active Pro", async () => {
     const owner = await ownerWithMenu("Plan Check");
     expect(await (await site(`/r/${owner.code}`)).text()).toContain("Powered by TomatoFry");
-    await db.prepare("UPDATE restaurants SET plan = 'pro', plan_expires_at = NULL WHERE id = ?").bind(owner.restaurantId).run();
+    await subscribe(owner.restaurantId, "pro");
     expect(await (await site(`/r/${owner.code}`)).text()).not.toContain("Powered by TomatoFry");
-    await db.prepare("UPDATE restaurants SET plan_expires_at = 1 WHERE id = ?").bind(owner.restaurantId).run();
+    await subscribe(owner.restaurantId, "pro", 1);
     const expired = await site(`/r/${owner.code}`);
     expect(expired.status).toBe(200);
     expect(await expired.text()).toContain("Powered by TomatoFry");
@@ -112,7 +112,10 @@ describe("public menu page", () => {
 describe("public menu queries", () => {
   // Law 26: anyone can open a menu, so every query must use an index, never read a whole table.
   it.each(Object.entries(PUBLIC_MENU_SQL))("%s query uses an index and needs no extra sort", async (_name, sql) => {
-    const { results } = await db.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind("x").all<{ detail: string }>();
+    // Numbered parameters (?1, ?2) are bound once each. Since issue #39 the items query has two.
+    const numbered = new Set(sql.match(/\?\d/g) ?? []).size;
+    const values = Array.from({ length: numbered || (sql.match(/\?/g) ?? []).length }, () => "x");
+    const { results } = await db.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind(...values).all<{ detail: string }>();
     const details = results.map((row) => row.detail);
     expect(details.some((d) => d.startsWith("SEARCH") && d.includes("INDEX"))).toBe(true);
     expect(details.filter((d) => d.startsWith("SCAN") || d.includes("TEMP B-TREE"))).toEqual([]);
