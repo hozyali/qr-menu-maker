@@ -38,6 +38,30 @@ export interface Item {
   prices: Price[];
 }
 
+export interface NewPaymentRequest {
+  planId: string;
+  period: "monthly" | "yearly";
+  /** A new coupon to count when approved. Null when there is none, or when a recurring coupon is carried over. */
+  couponId: string | null;
+  couponTerms: { percentOff: number; duration: "once" | "recurring" } | null;
+  listMinor: number;
+  discountMinor: number;
+  amountMinor: number;
+  receiptKey: string;
+  ownerNote: string | null;
+}
+
+export interface PaymentRequestView {
+  id: string;
+  planName: string;
+  billingPeriod: string;
+  amountMinor: number;
+  status: "pending" | "approved" | "rejected";
+  reviewNote: string | null;
+  receiptKey: string;
+  createdAt: number;
+}
+
 export function tenantDb(db: D1Database, restaurantId: string) {
   if (!restaurantId) {
     throw new Error("tenantDb needs a restaurant id");
@@ -60,6 +84,50 @@ export function tenantDb(db: D1Database, restaurantId: string) {
     );
 
   return {
+    /**
+     * Sends a payment request (issue #41). The database allows one waiting request per restaurant,
+     * so this throws if one is already waiting, even when two are sent at the same moment.
+     */
+    async createPaymentRequest(request: NewPaymentRequest): Promise<string> {
+      const id = crypto.randomUUID();
+      await db
+        .prepare(
+          `INSERT INTO payment_requests (id, restaurant_id, plan_id, billing_period, coupon_id, coupon_percent_off, coupon_duration,
+                                         list_price_minor, discount_minor, amount_minor, receipt_key, status, owner_note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        )
+        .bind(id, restaurantId, request.planId, request.period, request.couponId, request.couponTerms?.percentOff ?? null,
+          request.couponTerms?.duration ?? null, request.listMinor, request.discountMinor, request.amountMinor,
+          request.receiptKey, request.ownerNote, Date.now())
+        .run();
+      return id;
+    },
+
+    /** The restaurant's most recent payment request, or null. */
+    async latestPaymentRequest(): Promise<PaymentRequestView | null> {
+      const row = await db
+        .prepare(
+          `SELECT q.id, p.name AS plan_name, q.billing_period, q.amount_minor, q.status, q.review_note, q.receipt_key, q.created_at
+           FROM payment_requests q JOIN plans p ON p.id = q.plan_id
+           WHERE q.restaurant_id = ? ORDER BY q.created_at DESC, q.id DESC LIMIT 1`,
+        )
+        .bind(restaurantId)
+        .first<Record<string, unknown>>();
+      return row ? toPaymentView(row) : null;
+    },
+
+    /** One of the restaurant's own payment requests. Returns null for any other restaurant's request (Law 18). */
+    async getPaymentRequest(id: string): Promise<PaymentRequestView | null> {
+      const row = await db
+        .prepare(
+          `SELECT q.id, p.name AS plan_name, q.billing_period, q.amount_minor, q.status, q.review_note, q.receipt_key, q.created_at
+           FROM payment_requests q JOIN plans p ON p.id = q.plan_id WHERE q.restaurant_id = ? AND q.id = ?`,
+        )
+        .bind(restaurantId, id)
+        .first<Record<string, unknown>>();
+      return row ? toPaymentView(row) : null;
+    },
+
     /** The restaurant's own details (issue #28). The menu code is read only: it never changes (Law 28). */
     async getProfile(): Promise<Profile | null> {
       const row = await db
@@ -351,5 +419,18 @@ export function tenantDb(db: D1Database, restaurantId: string) {
         })),
       };
     },
+  };
+}
+
+function toPaymentView(row: Record<string, unknown>): PaymentRequestView {
+  return {
+    id: String(row.id),
+    planName: String(row.plan_name),
+    billingPeriod: String(row.billing_period),
+    amountMinor: Number(row.amount_minor),
+    status: row.status === "approved" ? "approved" : row.status === "rejected" ? "rejected" : "pending",
+    reviewNote: row.review_note === null ? null : String(row.review_note),
+    receiptKey: String(row.receipt_key),
+    createdAt: Number(row.created_at),
   };
 }

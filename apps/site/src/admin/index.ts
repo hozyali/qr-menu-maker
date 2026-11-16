@@ -5,6 +5,7 @@ import { findAdminLogin, findAdminSession } from "../shared/accounts-db";
 import { checkLogin, endSession, sessionToken, startSession, tooManyRequests } from "../shared/auth";
 import { page } from "../shared/layout";
 import { registerCouponRoutes } from "./coupons";
+import { registerPaymentRoutes } from "./payments";
 import { registerPlanRoutes } from "./plans";
 import { type AdminEnv, registerRestaurantRoutes } from "./restaurants";
 
@@ -68,3 +69,5 @@ registerRestaurantRoutes(adminApp);
 registerPlanRoutes(adminApp);
 // Discount coupons (issue #40).
 registerCouponRoutes(adminApp);
+// Bank details and offline payment review (issue #41).
+registerPaymentRoutes(adminApp);
