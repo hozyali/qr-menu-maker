@@ -7,6 +7,7 @@ import { page } from "../shared/layout";
 import { registerCouponRoutes } from "./coupons";
 import { registerPaymentRoutes } from "./payments";
 import { registerPlanRoutes } from "./plans";
+import { registerTrialRoutes } from "./trials";
 import { type AdminEnv, registerRestaurantRoutes } from "./restaurants";
 
 // Master admin area on admin.tomatofry.com (issue #34). It never serves the static site files.
@@ -71,3 +72,5 @@ registerPlanRoutes(adminApp);
 registerCouponRoutes(adminApp);
 // Bank details and offline payment review (issue #41).
 registerPaymentRoutes(adminApp);
+// Free trial offers (issue #42).
+registerTrialRoutes(adminApp);

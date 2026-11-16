@@ -13,6 +13,7 @@ import { type CurrentPlan, currentPlan } from "../shared/subscriptions-db";
 import { tenantDb } from "../shared/tenant-db";
 import { readText } from "../shared/validation";
 import type { OwnerEnv } from "./menu";
+import { trialBanner, trialFor } from "./trial";
 
 // The owner's plan page: upgrade or renew by paying offline and uploading a receipt (issue #41).
 // The restaurant always comes from the login session (Law 18).
@@ -50,11 +51,13 @@ async function renderPlanPage(c: OwnerContext, state: PageState) {
   const owner = c.get("owner");
   const db = tenantDb(c.env.DB, owner.restaurantId);
   const now = Date.now();
-  const [plans, latest, bankDetails, used] = await Promise.all([
+  const [plans, latest, bankDetails, used, trial] = await Promise.all([
     listPlans(c.env.DB),
     db.latestPaymentRequest(),
     getSetting(c.env.DB, "bank_details"),
     db.countItems(),
+    // A free trial offer for this restaurant, if there is one (issue #42).
+    trialFor(c.env.DB, owner, now),
   ]);
   const { current, values } = state;
   const limit = planLimit(current.entitlements, "max_items");
@@ -68,6 +71,7 @@ async function renderPlanPage(c: OwnerContext, state: PageState) {
     page(
       "Plan",
       html`<h1>Your plan</h1>
+${trialBanner(trial)}
 <div class="stats">
 <div class="stat"><span class="meta">Plan</span><strong>${planLine}</strong></div>
 <div class="stat"><span class="meta">Dishes</span><strong>${limit === null ? `${used}` : `${Math.min(used, limit)} of ${limit}`}</strong>${limit !== null && used > limit ? html`<span class="meta">${used - limit} archived</span>` : ""}</div>
