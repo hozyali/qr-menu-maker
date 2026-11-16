@@ -12,7 +12,8 @@ export default tseslint.config(
     // admin-db.ts holds the reviewed master admin queries across restaurants (issue #36).
     // plans-db.ts holds the reviewed plan queries shared by all restaurants (issue #38).
     // subscriptions-db.ts holds the reviewed subscription queries for one restaurant (issue #39).
-    ignores: ["src/shared/tenant-db.ts", "src/shared/accounts-db.ts", "src/shared/public-menu-db.ts", "src/shared/admin-account.ts", "src/shared/admin-db.ts", "src/shared/plans-db.ts", "src/shared/subscriptions-db.ts", "src/**/*.test.ts"],
+    // coupons-db.ts holds the reviewed coupon queries, managed by the admin (issue #40).
+    ignores: ["src/shared/tenant-db.ts", "src/shared/accounts-db.ts", "src/shared/public-menu-db.ts", "src/shared/admin-account.ts", "src/shared/admin-db.ts", "src/shared/plans-db.ts", "src/shared/subscriptions-db.ts", "src/shared/coupons-db.ts", "src/**/*.test.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

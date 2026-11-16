@@ -4,6 +4,7 @@ import { html } from "hono/html";
 import { findAdminLogin, findAdminSession } from "../shared/accounts-db";
 import { checkLogin, endSession, sessionToken, startSession, tooManyRequests } from "../shared/auth";
 import { page } from "../shared/layout";
+import { registerCouponRoutes } from "./coupons";
 import { registerPlanRoutes } from "./plans";
 import { type AdminEnv, registerRestaurantRoutes } from "./restaurants";
 
@@ -65,3 +66,5 @@ adminApp.use("*", async (c, next) => {
 registerRestaurantRoutes(adminApp);
 // The plan editor (issue #38).
 registerPlanRoutes(adminApp);
+// Discount coupons (issue #40).
+registerCouponRoutes(adminApp);

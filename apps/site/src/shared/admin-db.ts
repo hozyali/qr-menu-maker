@@ -27,6 +27,9 @@ export const ADMIN_SQL = {
            FROM restaurants r JOIN users u ON u.id = r.owner_user_id
            LEFT JOIN subscriptions s ON s.restaurant_id = r.id LEFT JOIN plans p ON p.id = s.plan_id
            WHERE r.id = ?`,
+  // Finds a restaurant typed by the admin, by its menu code or its id (issue #40).
+  restaurantByCode: "SELECT id, name FROM restaurants WHERE menu_code = ?",
+  restaurantById: "SELECT id, name FROM restaurants WHERE id = ?",
   history: `SELECT a.action, a.details, a.created_at, u.email
             FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
             WHERE a.restaurant_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT 20`,
@@ -131,9 +134,11 @@ async function changeWithAudit(
   db: D1Database,
   update: D1PreparedStatement,
   audit: { actorUserId: string; action: string; restaurantId: string; details: unknown },
+  extra: D1PreparedStatement[] = [],
 ): Promise<void> {
   await db.batch([
     update,
+    ...extra,
     db
       .prepare("INSERT INTO audit_log (id, actor_user_id, action, restaurant_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(crypto.randomUUID(), audit.actorUserId, audit.action, audit.restaurantId, JSON.stringify(audit.details), Date.now()),
@@ -148,37 +153,49 @@ export interface SubscriptionChange {
   /** The end as a Pakistan date, for the audit log. */
   endsLabel: string | null;
   priceMinor: number;
+  /** A coupon used for this change (issue #40). Its terms are copied onto the subscription. */
+  coupon: { id: string; code: string; percentOff: number; duration: "once" | "recurring" } | null;
 }
 
-/** Puts a restaurant on a plan now (issue #39). The row is written in place, with an audit row in the same transaction. */
+/**
+ * Puts a restaurant on a plan now (issue #39). The row is written in place, with an audit row in the
+ * same transaction. `extra` holds the coupon redemption statements (issue #40), so the whole change
+ * fails together if the coupon can no longer be used.
+ */
 export async function setSubscription(
   db: D1Database,
   actorUserId: string,
   restaurant: RestaurantDetail,
   change: SubscriptionChange,
   fromLabel: string | null,
+  extra: D1PreparedStatement[] = [],
 ): Promise<void> {
   const now = Date.now();
   await changeWithAudit(
     db,
     db
       .prepare(
-        `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at)
-         VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?4)
+        `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at,
+                                    coupon_id, coupon_percent_off, coupon_duration)
+         VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?4, ?7, ?8, ?9)
          ON CONFLICT (restaurant_id) DO UPDATE SET plan_id = excluded.plan_id, billing_period = excluded.billing_period,
            status = 'active', started_at = excluded.started_at, ends_at = excluded.ends_at,
-           price_minor = excluded.price_minor, updated_at = excluded.updated_at`,
+           price_minor = excluded.price_minor, updated_at = excluded.updated_at,
+           coupon_id = excluded.coupon_id, coupon_percent_off = excluded.coupon_percent_off,
+           coupon_duration = excluded.coupon_duration`,
       )
-      .bind(restaurant.id, change.planId, change.period, now, change.endsAt, change.priceMinor),
+      .bind(restaurant.id, change.planId, change.period, now, change.endsAt, change.priceMinor,
+        change.coupon?.id ?? null, change.coupon?.percentOff ?? null, change.coupon?.duration ?? null),
     {
       actorUserId,
       action: "subscription_changed",
       restaurantId: restaurant.id,
       details: {
         from: { plan: restaurant.ended ? restaurant.defaultPlanName : restaurant.planName, period: restaurant.billingPeriod, ends: fromLabel },
-        to: { plan: change.planName, period: change.period, ends: change.endsLabel, price: change.priceMinor },
+        to: { plan: change.planName, period: change.period, ends: change.endsLabel, price: change.priceMinor, coupon: change.coupon?.code ?? null },
       },
     },
+    extra,
   );
 }
 
@@ -188,4 +205,16 @@ export async function setStatus(db: D1Database, actorUserId: string, restaurantI
     db.prepare("UPDATE restaurants SET status = ?, updated_at = ? WHERE id = ?").bind(status, Date.now(), restaurantId),
     { actorUserId, action: status === "suspended" ? "restaurant_suspended" : "restaurant_reactivated", restaurantId, details: null },
   );
+}
+
+/** A restaurant typed by the admin as a menu code ("k7x2p9") or an id. Returns null if there is none. */
+export async function findRestaurantRef(db: D1Database, value: string): Promise<{ id: string; name: string } | null> {
+  const ref = value.trim();
+  if (/^[23456789abcdefghjkmnpqrstuvwxyz]{6}$/.test(ref)) {
+    return db.prepare(ADMIN_SQL.restaurantByCode).bind(ref).first<{ id: string; name: string }>();
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(ref)) {
+    return db.prepare(ADMIN_SQL.restaurantById).bind(ref).first<{ id: string; name: string }>();
+  }
+  return null;
 }
