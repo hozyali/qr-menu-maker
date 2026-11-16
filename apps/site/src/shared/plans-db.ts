@@ -1,28 +1,25 @@
 // Plan queries (issue #38). Plans are shared by all restaurants, so these are reviewed queries
 // outside the tenant helper (Laws 17 and 18). Admin changes must only run after the admin
 // session and role check. Every value is bound.
-import { type Entitlements, FEATURES, type LegacyPlan, type LimitKey, type SwitchKey } from "./plans";
+import { type Entitlements, FEATURES, type LimitKey, type SwitchKey } from "./plans";
 
 // The SQL is listed here so a test can prove each query uses an index (Law 26).
 export const PLANS_SQL = {
-  entitlementsByLegacy: `SELECT p.id, p.name, p.is_free, e.feature_key, e.enabled, e.limit_value
-                         FROM plans p LEFT JOIN plan_entitlements e ON e.plan_id = p.id
-                         WHERE p.legacy_key = ?`,
   // The plans table stays small. The list walks it in display order and counts restaurants per
-  // plan through the restaurants_plan index.
+  // plan through the subscriptions_plan index (issue #39 moved plans from restaurants.plan).
   list: `SELECT p.id, p.name, p.is_free, p.monthly_price_minor, p.yearly_price_minor, p.is_signup_default, p.status,
                 p.legacy_key,
-                (SELECT COUNT(*) FROM restaurants r WHERE r.plan = p.legacy_key) AS restaurant_count
+                (SELECT COUNT(*) FROM subscriptions s WHERE s.plan_id = p.id) AS restaurant_count
          FROM plans p ORDER BY p.sort_order, p.created_at, p.id`,
   byId: `SELECT p.id, p.name, p.is_free, p.monthly_price_minor, p.yearly_price_minor, p.is_signup_default, p.status,
                 p.legacy_key, e.feature_key, e.enabled, e.limit_value,
-                (SELECT COUNT(*) FROM restaurants r WHERE r.plan = p.legacy_key) AS restaurant_count
+                (SELECT COUNT(*) FROM subscriptions s WHERE s.plan_id = p.id) AS restaurant_count
          FROM plans p LEFT JOIN plan_entitlements e ON e.plan_id = p.id WHERE p.id = ?`,
 };
 
 type Row = Record<string, unknown>;
 
-function toEntitlements(rows: Row[]): Entitlements | null {
+export function toEntitlements(rows: Row[]): Entitlements | null {
   const first = rows[0];
   if (!first) return null;
   const entitlements: Entitlements = {
@@ -44,14 +41,7 @@ function toEntitlements(rows: Row[]): Entitlements | null {
   return entitlements;
 }
 
-/** The features of a restaurant's plan, in one indexed query. */
-export async function loadEntitlements(db: D1Database, plan: LegacyPlan): Promise<Entitlements> {
-  const { results } = await db.prepare(PLANS_SQL.entitlementsByLegacy).bind(plan).all<Row>();
-  const entitlements = toEntitlements(results);
-  // The seed plans come from migration 0005. Without them nothing can be decided safely.
-  if (!entitlements) throw new Error(`Plan "${plan}" is missing. Run migration 0005_plans.sql.`);
-  return entitlements;
-}
+// A restaurant's plan and features are read by currentPlan in subscriptions-db.ts (issue #39).
 
 export interface PlanSummary {
   id: string;
@@ -101,6 +91,8 @@ export interface PlanInput {
   yearlyPriceMinor: number | null;
   switches: Record<SwitchKey, boolean>;
   limits: Record<LimitKey, number | null>;
+  /** New signups get this plan (issue #39). Exactly one plan has it. */
+  signupDefault: boolean;
 }
 
 /** A plain copy of the plan for the audit log, so before and after can be compared later. */
@@ -108,6 +100,7 @@ export function planSnapshot(input: PlanInput) {
   return {
     name: input.name,
     isFree: input.isFree,
+    signupDefault: input.signupDefault,
     monthly: input.monthlyPriceMinor,
     yearly: input.yearlyPriceMinor,
     ...input.switches,
@@ -124,6 +117,14 @@ function entitlementUpserts(db: D1Database, planId: string, input: PlanInput): D
       ? db.prepare(sql).bind(planId, feature.key, input.switches[feature.key] ? 1 : 0, null)
       : db.prepare(sql).bind(planId, feature.key, null, input.limits[feature.key]),
   );
+}
+
+function signupDefaultUpdates(db: D1Database, planId: string, input: PlanInput): D1PreparedStatement[] {
+  if (!input.signupDefault) return [];
+  return [
+    db.prepare("UPDATE plans SET is_signup_default = 0 WHERE is_signup_default = 1 AND id <> ?").bind(planId),
+    db.prepare("UPDATE plans SET is_signup_default = 1 WHERE id = ?").bind(planId),
+  ];
 }
 
 function auditInsert(db: D1Database, actorUserId: string, action: string, details: unknown) {
@@ -145,6 +146,7 @@ export async function createPlan(db: D1Database, actorUserId: string, input: Pla
       )
       .bind(id, input.name, input.isFree ? 1 : 0, input.monthlyPriceMinor, input.yearlyPriceMinor, now, now),
     ...entitlementUpserts(db, id, input),
+    ...signupDefaultUpdates(db, id, input),
     auditInsert(db, actorUserId, "plan_created", { planId: id, plan: planSnapshot(input) }),
   ]);
   return id;
@@ -157,6 +159,7 @@ export async function updatePlan(db: D1Database, actorUserId: string, id: string
       .bind(input.name, input.isFree ? 1 : 0, input.monthlyPriceMinor, input.yearlyPriceMinor, Date.now(), id),
     // One transaction, so a plan never ends up with half of a change.
     ...entitlementUpserts(db, id, input),
+    ...signupDefaultUpdates(db, id, input),
     auditInsert(db, actorUserId, "plan_updated", { planId: id, from: planSnapshot(before), to: planSnapshot(input) }),
   ]);
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleRequest } from "../src/index";
 import { FEATURES } from "../src/shared/plans";
 import { PLANS_SQL } from "../src/shared/plans-db";
-import { APP, adminGet, adminPost, codeOf, db, get, newAdminSession, newOwner, passTurnstile, post } from "./helpers";
+import { APP, adminGet, adminPost, codeOf, db, get, newAdminSession, newOwner, passTurnstile, post, subscribe } from "./helpers";
 
 // Plans stored in the database and edited by the admin (issue #38). Test values only.
 beforeEach(() => passTurnstile());
@@ -127,7 +127,8 @@ describe("admin plan pages", () => {
     const admin = await newAdminSession();
     const free = await planByLegacy("free");
     const owner = await dishOwner("Limit Follow");
-    expect((await adminPost(`/plans/${free?.id}`, planForm({ name: "Free", kind: "free", monthly: "", yearly: "", max_items: "1" }, ["hide_powered_by"]), admin.cookie)).status).toBe(303);
+    // Free is the signup plan, so its form keeps "Use for new signups" ticked (issue #39).
+    expect((await adminPost(`/plans/${free?.id}`, planForm({ name: "Free", kind: "free", monthly: "", yearly: "", signup_default: "on", max_items: "1" }, ["hide_powered_by"]), admin.cookie)).status).toBe(303);
     // One dish already exists, so a second is refused.
     const second = await post("/items", { category_id: owner.categoryId, name: "Second", price_label: [""], price_amount: ["100"] }, owner.cookie);
     expect(second.status).toBe(403);
@@ -136,7 +137,7 @@ describe("admin plan pages", () => {
     const log = (await auditActions()).find((row) => row.action === "plan_updated" && row.details.includes('"max_items":1'));
     expect(log).toBeDefined();
     // Restore the seed for the other tests in this file.
-    await adminPost(`/plans/${free?.id}`, planForm({ name: "Free", kind: "free", monthly: "", yearly: "", max_items: "25" }, ["hide_powered_by"]), admin.cookie);
+    await adminPost(`/plans/${free?.id}`, planForm({ name: "Free", kind: "free", monthly: "", yearly: "", signup_default: "on", max_items: "25" }, ["hide_powered_by"]), admin.cookie);
   });
 
   it("saves an unlimited dish limit", async () => {
@@ -254,10 +255,10 @@ describe("features are enforced from the plan", () => {
   it("gives an active Pro restaurant the Pro features, and an expired one the Free features", async () => {
     const owner = await dishOwner("Pro Features");
     const code = await codeOf(owner.restaurantId);
-    await db.prepare("UPDATE restaurants SET plan = 'pro', plan_expires_at = NULL WHERE id = ?").bind(owner.restaurantId).run();
+    await subscribe(owner.restaurantId, "pro");
     expect(await (await site(`/r/${code}`)).text()).not.toContain("Powered by TomatoFry");
     expect(await (await get("/", owner.cookie)).text()).toContain("Pro");
-    await db.prepare("UPDATE restaurants SET plan_expires_at = 1 WHERE id = ?").bind(owner.restaurantId).run();
+    await subscribe(owner.restaurantId, "pro", 1);
     expect(await (await site(`/r/${code}`)).text()).toContain("Powered by TomatoFry");
   });
 });

@@ -31,7 +31,7 @@ function readPrice(value: string): number | null | "invalid" {
 /** Reads and checks the plan form on the server (Law 19). Returns the input or an error message. */
 function readPlanForm(form: FormData): { input: PlanInput; values: FormValues } | { error: string; values: FormValues } {
   const values: FormValues = {};
-  for (const key of ["name", "kind", "monthly", "yearly", "max_items", "max_items_unlimited"]) values[key] = readText(form, key);
+  for (const key of ["name", "kind", "monthly", "yearly", "max_items", "max_items_unlimited", "signup_default"]) values[key] = readText(form, key);
   for (const feature of FEATURES) if (feature.type === "switch") values[feature.key] = readText(form, feature.key);
 
   if (values.name!.length < 2 || values.name!.length > 40) return { error: "Use a plan name of 2 to 40 characters.", values };
@@ -62,7 +62,10 @@ function readPlanForm(form: FormData): { input: PlanInput; values: FormValues } 
       limits[feature.key] = Number(raw);
     }
   }
-  return { input: { name: values.name!, isFree, monthlyPriceMinor: monthly, yearlyPriceMinor: yearly, switches, limits }, values };
+  const signupDefault = values.signup_default === "on";
+  // Every new restaurant starts on the signup plan without paying, so it must be free (issue #39).
+  if (signupDefault && !isFree) return { error: "Only a free plan can be the signup plan.", values };
+  return { input: { name: values.name!, isFree, monthlyPriceMinor: monthly, yearlyPriceMinor: yearly, switches, limits, signupDefault }, values };
 }
 
 function inputFromPlan(plan: PlanDetail): PlanInput {
@@ -75,7 +78,15 @@ function inputFromPlan(plan: PlanDetail): PlanInput {
       limits[feature.key] = value === undefined ? 0 : value;
     }
   }
-  return { name: plan.name, isFree: plan.isFree, monthlyPriceMinor: plan.monthlyPriceMinor, yearlyPriceMinor: plan.yearlyPriceMinor, switches, limits };
+  return {
+    name: plan.name,
+    isFree: plan.isFree,
+    monthlyPriceMinor: plan.monthlyPriceMinor,
+    yearlyPriceMinor: plan.yearlyPriceMinor,
+    switches,
+    limits,
+    signupDefault: plan.isSignupDefault,
+  };
 }
 
 const rupees = (minor: number | null) => (minor === null ? "" : String(minor / 100));
@@ -86,6 +97,7 @@ function valuesFromInput(input: PlanInput): FormValues {
     kind: input.isFree ? "free" : "paid",
     monthly: rupees(input.monthlyPriceMinor),
     yearly: rupees(input.yearlyPriceMinor),
+    signup_default: input.signupDefault ? "on" : "",
   };
   for (const feature of FEATURES) {
     if (feature.type === "switch") values[feature.key] = input.switches[feature.key] ? "on" : "";
@@ -146,6 +158,10 @@ ${FEATURES.map((feature) =>
 </div>`,
 )}
 </fieldset>
+<label class="feature-toggle">
+<input type="checkbox" name="signup_default"${checked(values.signup_default === "on")}>
+<span class="feature-text"><strong>Use for new signups</strong><span class="meta">Every new restaurant starts on this plan. Only one free plan can have this.</span></span>
+</label>
 <button class="button" type="submit">Save plan</button>
 <a class="button secondary" href="/plans">Cancel</a>
 </form>`;
@@ -206,6 +222,13 @@ ${plan.status === "archived" ? html`<span class="badge warn">Archived</span>` : 
     if ("error" in result) return c.html(planPage(plan, result.values, result.error), 400);
     if (plan.isSignupDefault && !result.input.isFree) {
       return c.html(planPage(plan, result.values, "The signup plan must stay free."), 400);
+    }
+    // There must always be exactly one signup plan, so it moves by ticking another plan, not by unticking this one.
+    if (plan.isSignupDefault && !result.input.signupDefault) {
+      return c.html(planPage(plan, result.values, "To change the signup plan, tick \"Use for new signups\" on the other plan."), 400);
+    }
+    if (result.input.signupDefault && plan.status === "archived") {
+      return c.html(planPage(plan, result.values, "An archived plan cannot be the signup plan. Restore it first."), 400);
     }
     await updatePlan(c.env.DB, c.get("admin").userId, id, inputFromPlan(plan), result.input);
     return c.redirect(`/plans/${id}`, 303);

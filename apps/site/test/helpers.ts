@@ -98,3 +98,18 @@ export async function newAdminSession() {
   const user = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
   return { email, cookie, userId: user?.id ?? "" };
 }
+
+/**
+ * Puts a restaurant on a plan (issue #39). "free" and "pro" are the seeded plans. Anything else is a plan id.
+ * An end time in the past makes the restaurant fall back to the signup plan.
+ */
+export async function subscribe(restaurantId: string, plan: string, endsAt: number | null = null) {
+  const planId =
+    plan === "free" || plan === "pro"
+      ? (await db.prepare("SELECT id FROM plans WHERE legacy_key = ?").bind(plan).first<{ id: string }>())?.id
+      : plan;
+  await db
+    .prepare("UPDATE subscriptions SET plan_id = ?, ends_at = ?, billing_period = 'none', status = 'active', updated_at = ? WHERE restaurant_id = ?")
+    .bind(planId, endsAt, Date.now(), restaurantId)
+    .run();
+}

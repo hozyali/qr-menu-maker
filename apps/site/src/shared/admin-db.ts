@@ -1,7 +1,7 @@
 // Master admin queries (issue #36). The admin works across all restaurants, so these are separate,
 // explicit, reviewed queries outside the tenant helper (Law 18). The caller must have checked the
 // admin session and role first. Every value is bound (Law 17).
-import { effectivePlan, type LegacyPlan } from "./plans";
+// Since issue #39 a restaurant's plan comes from subscriptions, not restaurants.plan.
 
 export const PAGE_SIZE = 25;
 
@@ -9,17 +9,24 @@ export const PAGE_SIZE = 25;
 export const ADMIN_SQL = {
   // Newest first. Keyset paging on (created_at, id) matches the restaurants_created index, so a later
   // page costs the same as the first. One extra row tells us whether there is a next page.
-  listFirst: `SELECT r.id, r.name, r.city, r.plan, r.plan_expires_at, r.status, r.created_at, u.email
+  listFirst: `SELECT r.id, r.name, r.city, r.status, r.created_at, u.email, s.plan_id, s.billing_period, s.ends_at, s.price_minor, p.name AS plan_name,
+              (SELECT d.name FROM plans d WHERE d.is_signup_default = 1) AS default_plan_name
               FROM restaurants r JOIN users u ON u.id = r.owner_user_id
+              LEFT JOIN subscriptions s ON s.restaurant_id = r.id LEFT JOIN plans p ON p.id = s.plan_id
               ORDER BY r.created_at DESC, r.id DESC LIMIT ?`,
-  listAfter: `SELECT r.id, r.name, r.city, r.plan, r.plan_expires_at, r.status, r.created_at, u.email
+  listAfter: `SELECT r.id, r.name, r.city, r.status, r.created_at, u.email, s.plan_id, s.billing_period, s.ends_at, s.price_minor, p.name AS plan_name,
+              (SELECT d.name FROM plans d WHERE d.is_signup_default = 1) AS default_plan_name
               FROM restaurants r JOIN users u ON u.id = r.owner_user_id
+              LEFT JOIN subscriptions s ON s.restaurant_id = r.id LEFT JOIN plans p ON p.id = s.plan_id
               WHERE (r.created_at, r.id) < (?, ?)
               ORDER BY r.created_at DESC, r.id DESC LIMIT ?`,
-  detail: `SELECT r.id, r.name, r.city, r.address, r.phone, r.whatsapp, r.menu_code, r.plan, r.plan_expires_at,
-                  r.status, r.created_at, u.email,
+  detail: `SELECT r.id, r.name, r.city, r.address, r.phone, r.whatsapp, r.menu_code,
+                  r.status, r.created_at, u.email, s.plan_id, s.billing_period, s.ends_at, s.price_minor, p.name AS plan_name,
+              (SELECT d.name FROM plans d WHERE d.is_signup_default = 1) AS default_plan_name,
                   (SELECT COUNT(*) FROM items i WHERE i.restaurant_id = r.id) AS dish_count
-           FROM restaurants r JOIN users u ON u.id = r.owner_user_id WHERE r.id = ?`,
+           FROM restaurants r JOIN users u ON u.id = r.owner_user_id
+           LEFT JOIN subscriptions s ON s.restaurant_id = r.id LEFT JOIN plans p ON p.id = s.plan_id
+           WHERE r.id = ?`,
   history: `SELECT a.action, a.details, a.created_at, u.email
             FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
             WHERE a.restaurant_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT 20`,
@@ -29,26 +36,40 @@ export interface RestaurantRow {
   id: string;
   name: string;
   city: string | null;
-  plan: LegacyPlan;
-  /** The stored plan, before an expired Pro turns into Free. */
-  storedPlan: string;
-  planExpiresAt: number | null;
+  /** The subscription's plan, even if it has ended. */
+  planId: string | null;
+  planName: string;
+  billingPeriod: "monthly" | "yearly" | "none";
+  endsAt: number | null;
+  priceMinor: number;
+  /** True when the subscription's plan has ended, so the restaurant uses the signup plan. */
+  ended: boolean;
+  /** The signup plan's name, shown when the subscription has ended. */
+  defaultPlanName: string;
   status: string;
   createdAt: number;
   email: string;
 }
 
-const toRow = (row: Record<string, unknown>, now: number): RestaurantRow => ({
-  id: String(row.id),
-  name: String(row.name),
-  city: row.city === null ? null : String(row.city),
-  storedPlan: String(row.plan),
-  planExpiresAt: row.plan_expires_at === null ? null : Number(row.plan_expires_at),
-  plan: effectivePlan(String(row.plan), row.plan_expires_at === null ? null : Number(row.plan_expires_at), now),
-  status: String(row.status),
-  createdAt: Number(row.created_at),
-  email: String(row.email),
-});
+const toRow = (row: Record<string, unknown>, now: number): RestaurantRow => {
+  const endsAt = row.ends_at === null || row.ends_at === undefined ? null : Number(row.ends_at);
+  const period = row.billing_period;
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    city: row.city === null ? null : String(row.city),
+    planId: row.plan_id === null || row.plan_id === undefined ? null : String(row.plan_id),
+    planName: row.plan_name === null || row.plan_name === undefined ? String(row.default_plan_name) : String(row.plan_name),
+    billingPeriod: period === "monthly" || period === "yearly" ? period : "none",
+    endsAt,
+    priceMinor: Number(row.price_minor ?? 0),
+    ended: !row.plan_id || (endsAt !== null && endsAt <= now),
+    defaultPlanName: String(row.default_plan_name),
+    status: String(row.status),
+    createdAt: Number(row.created_at),
+    email: String(row.email),
+  };
+};
 
 export interface Cursor {
   createdAt: number;
@@ -119,24 +140,43 @@ async function changeWithAudit(
   ]);
 }
 
-export async function setPlan(
+export interface SubscriptionChange {
+  planId: string;
+  planName: string;
+  period: "monthly" | "yearly" | "none";
+  endsAt: number | null;
+  /** The end as a Pakistan date, for the audit log. */
+  endsLabel: string | null;
+  priceMinor: number;
+}
+
+/** Puts a restaurant on a plan now (issue #39). The row is written in place, with an audit row in the same transaction. */
+export async function setSubscription(
   db: D1Database,
   actorUserId: string,
   restaurant: RestaurantDetail,
-  change: { plan: LegacyPlan; expiresAt: number | null; expiresLabel: string | null; fromLabel: string | null },
+  change: SubscriptionChange,
+  fromLabel: string | null,
 ): Promise<void> {
+  const now = Date.now();
   await changeWithAudit(
     db,
     db
-      .prepare("UPDATE restaurants SET plan = ?, plan_expires_at = ?, updated_at = ? WHERE id = ?")
-      .bind(change.plan, change.expiresAt, Date.now(), restaurant.id),
+      .prepare(
+        `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at)
+         VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?4)
+         ON CONFLICT (restaurant_id) DO UPDATE SET plan_id = excluded.plan_id, billing_period = excluded.billing_period,
+           status = 'active', started_at = excluded.started_at, ends_at = excluded.ends_at,
+           price_minor = excluded.price_minor, updated_at = excluded.updated_at`,
+      )
+      .bind(restaurant.id, change.planId, change.period, now, change.endsAt, change.priceMinor),
     {
       actorUserId,
-      action: "plan_changed",
+      action: "subscription_changed",
       restaurantId: restaurant.id,
       details: {
-        from: { plan: restaurant.storedPlan, expires: change.fromLabel },
-        to: { plan: change.plan, expires: change.expiresLabel },
+        from: { plan: restaurant.ended ? restaurant.defaultPlanName : restaurant.planName, period: restaurant.billingPeriod, ends: fromLabel },
+        to: { plan: change.planName, period: change.period, ends: change.endsLabel, price: change.priceMinor },
       },
     },
   );

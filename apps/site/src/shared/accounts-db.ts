@@ -1,8 +1,8 @@
 // Account queries: users, sessions, and login attempts.
 // These work before a restaurant is known (signup and login), so they cannot use the tenant helper.
 // Every query here is reviewed by hand and never returns another restaurant's menu data (Law 18).
-import { effectivePlan, type Entitlements } from "./plans";
-import { loadEntitlements } from "./plans-db";
+import type { Entitlements } from "./plans";
+import { currentPlan } from "./subscriptions-db";
 
 export interface OwnerLogin {
   userId: string;
@@ -16,8 +16,10 @@ export interface OwnerSession {
   city: string | null;
   /** The permanent code in menu links and QR codes (Law 28). */
   menuCode: string;
-  /** Features and limits of the effective plan (issue #38). An expired Pro is already Free here. */
+  /** Features and limits of the plan in use (issues #38 and #39). An ended plan is already the signup plan here. */
   entitlements: Entitlements;
+  /** When the plan in use ends, or null for no end. */
+  planEndsAt: number | null;
 }
 
 const encoder = new TextEncoder();
@@ -49,6 +51,7 @@ export interface NewOwner {
 /** Creates the user and their restaurant together. Throws if the email or slug is already taken. */
 export async function createOwner(db: D1Database, owner: NewOwner): Promise<{ userId: string }> {
   const userId = crypto.randomUUID();
+  const restaurantId = crypto.randomUUID();
   const now = Date.now();
   await db.batch([
     db
@@ -58,7 +61,14 @@ export async function createOwner(db: D1Database, owner: NewOwner): Promise<{ us
       .prepare(
         "INSERT INTO restaurants (id, owner_user_id, name, slug, menu_code, city, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .bind(crypto.randomUUID(), userId, owner.restaurantName, owner.slug, owner.menuCode, owner.city, owner.phone, now, now),
+      .bind(restaurantId, userId, owner.restaurantName, owner.slug, owner.menuCode, owner.city, owner.phone, now, now),
+    // Every new restaurant starts on the signup plan, with no end and no price (issue #39).
+    db
+      .prepare(
+        `INSERT INTO subscriptions (restaurant_id, plan_id, billing_period, status, started_at, ends_at, price_minor, updated_at)
+         VALUES (?, (SELECT id FROM plans WHERE is_signup_default = 1), 'none', 'active', ?, NULL, 0, ?)`,
+      )
+      .bind(restaurantId, now, now),
   ]);
   return { userId };
 }
@@ -111,23 +121,25 @@ export async function createSession(db: D1Database, userId: string, token: strin
 export async function findOwnerSession(db: D1Database, token: string, now: number): Promise<OwnerSession | null> {
   const row = await db
     .prepare(
-      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.city, r.menu_code, r.plan, r.plan_expires_at
+      `SELECT u.id AS user_id, r.id AS restaurant_id, r.name, r.city, r.menu_code
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        JOIN restaurants r ON r.owner_user_id = u.id
        WHERE s.token_hash = ? AND s.expires_at > ? AND u.role = 'owner'`,
     )
     .bind(await sha256Hex(token), now)
-    .first<{ user_id: string; restaurant_id: string; name: string; city: string | null; menu_code: string; plan: string; plan_expires_at: number | null }>();
+    .first<{ user_id: string; restaurant_id: string; name: string; city: string | null; menu_code: string }>();
   if (!row) return null;
+  // The plan is read fresh on every request, so an ended plan or a plan change applies at once.
+  const plan = await currentPlan(db, row.restaurant_id, now);
   return {
     userId: row.user_id,
     restaurantId: row.restaurant_id,
     restaurantName: row.name,
     city: row.city,
     menuCode: row.menu_code,
-    // One more indexed query for the plan's features, read fresh on every request.
-    entitlements: await loadEntitlements(db, effectivePlan(row.plan, row.plan_expires_at, now)),
+    entitlements: plan.entitlements,
+    planEndsAt: plan.endsAt,
   };
 }
 

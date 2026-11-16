@@ -1,9 +1,9 @@
-// Public menu queries for tomatofry.com/r/<code> (issues #24 and #32).
+// Public menu queries for tomatofry.com/r/<code> (issues #24, #32, and #39).
 // Anyone can open this page, so these are separate, reviewed queries (Laws 17 and 18).
 // They return only the fixed list of public fields: never the owner, email, account, or ids
 // beyond what the page needs to link categories.
-import { effectivePlan, planAllows } from "./plans";
-import { loadEntitlements } from "./plans-db";
+import { planAllows, planLimit } from "./plans";
+import { currentPlan, sqlLimit } from "./subscriptions-db";
 import type { Price } from "./tenant-db";
 import { DEFAULT_THEME, type Theme, toTheme } from "./theme";
 
@@ -45,12 +45,15 @@ export type PublicMenu =
 // The SQL is listed here so a test can prove each query uses an index (Law 26).
 export const PUBLIC_MENU_SQL = {
   restaurant: `SELECT id, name, logo_key, city, address, phone, whatsapp, maps_url, hours, note, country, currency,
-                      plan, plan_expires_at, status, theme_color, theme_mode, photo_size
+                      status, theme_color, theme_mode, photo_size
                FROM restaurants WHERE menu_code = ?`,
-  theme: "SELECT theme_color, theme_mode, photo_size, plan, plan_expires_at FROM restaurants WHERE menu_code = ?",
+  theme: "SELECT id, theme_color, theme_mode, photo_size FROM restaurants WHERE menu_code = ?",
   categories: "SELECT id, name FROM categories WHERE restaurant_id = ? ORDER BY sort_order, id",
+  // Only the restaurant's oldest dishes up to the plan's limit are public. The rest are archived (issue #39).
   items: `SELECT id, category_id, name, description, is_available, photo_key FROM items
-          WHERE restaurant_id = ? ORDER BY category_id, sort_order, id`,
+          WHERE restaurant_id = ?1
+            AND id IN (SELECT id FROM items WHERE restaurant_id = ?1 ORDER BY created_at, id LIMIT ?2)
+          ORDER BY category_id, sort_order, id`,
   prices: "SELECT item_id, label, amount_minor FROM item_prices WHERE restaurant_id = ? ORDER BY item_id, sort_order",
 };
 
@@ -64,10 +67,9 @@ async function findRestaurant(db: D1Database, code: string) {
     .first<Record<string, unknown>>();
 }
 
-/** The plan's features decide which stored settings the public sees (issue #38). */
+/** The plan's features decide which stored settings the public sees (issues #38 and #39). */
 async function planFeatures(db: D1Database, row: Record<string, unknown>, now: number) {
-  const plan = effectivePlan(String(row.plan), row.plan_expires_at === null ? null : Number(row.plan_expires_at), now);
-  return loadEntitlements(db, plan);
+  return (await currentPlan(db, String(row.id), now)).entitlements;
 }
 
 /** A saved theme is kept, but only shown while the plan has the theme editor. */
@@ -116,7 +118,7 @@ export async function findPublicMenu(db: D1Database, code: string, now: number):
   const restaurantId = String(row.id);
   const [categoryResult, itemResult, priceResult] = await db.batch<Record<string, unknown>>([
     db.prepare(PUBLIC_MENU_SQL.categories).bind(restaurantId),
-    db.prepare(PUBLIC_MENU_SQL.items).bind(restaurantId),
+    db.prepare(PUBLIC_MENU_SQL.items).bind(restaurantId, sqlLimit(planLimit(features, "max_items"))),
     db.prepare(PUBLIC_MENU_SQL.prices).bind(restaurantId),
   ]);
 

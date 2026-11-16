@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { planLimit, planAllows, effectivePlan } from "../src/shared/plans";
-import { loadEntitlements } from "../src/shared/plans-db";
-import { db, get, newOwner, passTurnstile, post } from "./helpers";
+import { planLimit, planAllows } from "../src/shared/plans";
+import { currentPlan } from "../src/shared/subscriptions-db";
+import { db, get, newOwner, passTurnstile, post, subscribe } from "./helpers";
 
 beforeEach(() => passTurnstile());
 afterEach(() => vi.restoreAllMocks());
@@ -38,22 +38,28 @@ async function addDish(cookie: string, category: string, name: string, priceRows
 }
 
 describe("plans", () => {
-  // Since issue #38 the plans live in the database. These check the seeded plans through the same
-  // functions the app uses.
-  it("gives the Free plan 25 dishes and the theme", async () => {
-    const free = await loadEntitlements(db, "free");
-    expect(planLimit(free, "max_items")).toBe(25);
-    expect(planAllows(free, "custom_theme")).toBe(true);
+  // Since issue #39 a restaurant's plan comes from its subscription, read through currentPlan.
+  it("gives a new restaurant the Free plan with 25 dishes and the theme", async () => {
+    const { restaurantId } = await newOwner();
+    const { entitlements } = await currentPlan(db, restaurantId, Date.now());
+    expect(entitlements.planName).toBe("Free");
+    expect(planLimit(entitlements, "max_items")).toBe(25);
+    expect(planAllows(entitlements, "custom_theme")).toBe(true);
   });
 
   it("gives Pro unlimited dishes", async () => {
-    expect(planLimit(await loadEntitlements(db, "pro"), "max_items")).toBeNull();
+    const { restaurantId } = await newOwner();
+    await subscribe(restaurantId, "pro");
+    expect(planLimit((await currentPlan(db, restaurantId, Date.now())).entitlements, "max_items")).toBeNull();
   });
 
-  it("treats an expired Pro plan as Free", () => {
-    expect(effectivePlan("pro", 1, 2)).toBe("free");
-    expect(effectivePlan("pro", null, 2)).toBe("pro");
-    expect(effectivePlan("pro", 5, 2)).toBe("pro");
+  it("treats an ended Pro plan as Free", async () => {
+    const { restaurantId } = await newOwner();
+    await subscribe(restaurantId, "pro", 5);
+    expect((await currentPlan(db, restaurantId, 2)).entitlements.planName).toBe("Pro");
+    const ended = await currentPlan(db, restaurantId, 6);
+    expect(ended.entitlements.planName).toBe("Free");
+    expect(ended.ended).toBe(true);
   });
 });
 
@@ -199,7 +205,7 @@ describe("dishes", () => {
 
   it("lets Pro add more than 25 dishes", async () => {
     const { cookie, restaurantId } = await newOwner();
-    await db.prepare("UPDATE restaurants SET plan = 'pro' WHERE id = ?").bind(restaurantId).run();
+    await subscribe(restaurantId, "pro");
     await post("/categories", { name: "Many" }, cookie);
     const many = await categoryId(restaurantId, "Many");
     for (let i = 1; i <= 26; i++) {

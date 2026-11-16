@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encode } from "uqr";
 import { menuUrl } from "../src/shared/menu-link";
-import { codeOf, db, get, newOwner, passTurnstile, post } from "./helpers";
+import { codeOf, get, newOwner, passTurnstile, post, subscribe } from "./helpers";
 
 beforeEach(() => passTurnstile());
 afterEach(() => vi.restoreAllMocks());
@@ -126,7 +126,7 @@ describe("QR code", () => {
   it("keeps the same QR when a Pro plan expires", async () => {
     const owner = await newOwner("QR Expired");
     const before = new Uint8Array(await (await get("/qr.png", owner.cookie)).arrayBuffer());
-    await db.prepare("UPDATE restaurants SET plan = 'pro', plan_expires_at = 1 WHERE id = ?").bind(owner.restaurantId).run();
+    await subscribe(owner.restaurantId, "pro", 1);
     await post("/profile", { name: "Renamed Place", city: "Karachi", phone: "0300 1234567" }, owner.cookie);
     const after = new Uint8Array(await (await get("/qr.png", owner.cookie)).arrayBuffer());
     expect(after).toEqual(before);

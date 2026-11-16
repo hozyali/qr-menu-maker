@@ -1,5 +1,6 @@
 // All restaurant data goes through this helper, so every query is limited to one restaurant (Law 18).
 // The restaurant id must come from the login session, never from anything the browser sends.
+import { SUBSCRIPTION_SQL, sqlLimit } from "./subscriptions-db";
 import { type Theme, toTheme } from "./theme";
 import type { ProfileInput } from "./validation";
 
@@ -184,6 +185,23 @@ export function tenantDb(db: D1Database, restaurantId: string) {
         .bind(restaurantId, id)
         .run();
       return meta.changes > 0;
+    },
+
+    /**
+     * The dishes that are not archived: the oldest ones up to the plan's limit (issue #39).
+     * Returns null when there is no limit, meaning every dish is active.
+     */
+    async activeItemIds(limit: number | null): Promise<Set<string> | null> {
+      if (limit === null) return null;
+      const { results } = await db.prepare(SUBSCRIPTION_SQL.activeItems).bind(restaurantId, sqlLimit(limit)).all<{ id: string }>();
+      return new Set(results.map((row) => row.id));
+    },
+
+    /** True when this dish is past the plan's limit. Archived dishes are hidden and locked (issue #39). */
+    async isItemArchived(id: string, limit: number | null): Promise<boolean> {
+      if (limit === null) return false;
+      const row = await db.prepare(SUBSCRIPTION_SQL.itemRank).bind(restaurantId, id).first<{ n: number }>();
+      return (row?.n ?? 0) >= limit;
     },
 
     async countItems(): Promise<number> {
