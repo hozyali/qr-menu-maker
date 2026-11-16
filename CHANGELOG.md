@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `2026-11-16T17:50Z` The README now says the app was built in public.
 - `2026-11-16T13:18Z` The AI review workflow now uses `anthropics/claude-code-action` v1.0.270, pinned by commit SHA. This replaces Dependabot's #44, which could not pass the changelog check.
 - `2026-11-11T13:41Z` Menu links now use a permanent random code: `tomatofry.com/r/<code>/<name-city>`. Only the code finds the restaurant, so name and city changes never break a link, and restaurants with the same name no longer clash. QR codes contain only `tomatofry.com/r/<code>`. Old name-only links stop working (demo data only). Rulebook Law 28 updated to match. Needs migration `0003_menu_code.sql`.
 - `2026-11-06T13:26Z` Rulebook updated for the demo setup: no staging, one production database, deploy on merge, and owner-approved migrations.

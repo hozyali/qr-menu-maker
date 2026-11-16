@@ -4,7 +4,7 @@ TomatoFry is a multi-tenant SaaS app. Restaurants put their menu online, print a
 
 **Live demo:** [tomatofry.com](https://tomatofry.com). It holds demo data only.
 
-This project was built **live, in public, during an online class**. Every change went through a real production workflow: GitHub issues, pull requests, automated checks, an AI code review, and a human merge. You can follow the whole history in the [issues](https://github.com/hozyali/qr-menu-maker/issues), [pull requests](https://github.com/hozyali/qr-menu-maker/pulls), and [CHANGELOG.md](CHANGELOG.md).
+This project was **built in public**. Every change went through a real production workflow: GitHub issues, pull requests, automated checks, an AI code review, and a human merge. You can follow the whole history in the [issues](https://github.com/hozyali/qr-menu-maker/issues), [pull requests](https://github.com/hozyali/qr-menu-maker/pulls), and [CHANGELOG.md](CHANGELOG.md).
 
 ## Why restaurants like it
 
@@ -69,7 +69,7 @@ This project was built **live, in public, during an online class**. Every change
 - **Uploads:** only JPG, PNG, and WEBP, checked by the file's bytes, never SVG, with a size limit on the server. Payment receipts are private.
 - **Requests and responses:** all SQL is parameterized, all output is escaped, and forms check their origin. A strict Content Security Policy and other security headers are set on every response.
 
-## How it was built in class
+## How it was built in public
 
 The rules for the project live in [rulebook.md](rulebook.md). The main workflow:
 
